@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Ticket, Building, Filter, Calendar, MoreVertical, Car, Image as Loader2, History, LayoutList, Eye } from 'lucide-react';
+import { ChevronDown, Ticket, Building, Filter, Calendar, MoreVertical, Car, Image as Loader2, History, LayoutList } from 'lucide-react';
 import { INITIAL_TICKETS_DATA, JUSTIFICATION_GROUPS } from "../../data/mockData";
 import { JustificationModal } from "../modals/JustificationModal";
 import { HistoryDetailModal } from "../modals/HistoryDetailModal";
@@ -34,7 +34,7 @@ const TicketsView = () => {
   const [isLoadingParks, setIsLoadingParks] = useState(false);
   const loadingTimerRef = useRef<number | null>(null);
 
-  // Cargar Parqueaderos desde la API n8n (igual que Centro de Costo)
+  // Cargar Parqueaderos desde la API n8n
   useEffect(() => {
     const loadParkingLots = async () => {
       setIsLoadingParks(true);
@@ -204,7 +204,6 @@ const TicketsView = () => {
           </div>
         </div>
 
-        {/* El resto del componente se mantiene igual */}
         <div className="flex items-center gap-8 mb-6 border-b border-slate-200 pb-2">
           <button onClick={() => setViewMode('gestion')} className={`px-4 py-2 text-sm font-bold transition-all relative ${viewMode === 'gestion' ? 'text-[#001F3F]' : 'text-slate-400 hover:text-slate-600'}`}>
             <div className="flex items-center gap-2"><LayoutList size={16} />Gestión de tickets</div>
@@ -218,7 +217,6 @@ const TicketsView = () => {
 
         {viewMode === 'gestion' ? (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden min-h-[400px]">
-            {/* ... resto del código de la tabla se mantiene igual ... */}
             <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
                 <Ticket className="text-[#001F3F]" size={24} />
@@ -233,7 +231,6 @@ const TicketsView = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                {/* Tabla completa - se mantiene igual al original */}
                 <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-100">
                   <tr>
                     <th className="px-6 py-4 whitespace-nowrap">Número de Ticket</th>
@@ -301,13 +298,11 @@ const TicketsView = () => {
           </div>
         ) : (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden min-h-[400px]">
-            {/* Historial - se mantiene igual */}
             <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
                 <History className="text-[#001F3F]" size={24} />
                 Historial de Justificaciones
               </h2>
-
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <select
@@ -324,7 +319,66 @@ const TicketsView = () => {
                 </div>
               </div>
             </div>
-            {/* ... resto del historial igual ... */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4">Número de Ticket</th>
+                    <th className="px-6 py-4">Equipo de Entrada</th>
+                    <th className="px-6 py-4">Fecha</th>
+                    <th className="px-6 py-4">Matrícula</th>
+                    <th className="px-6 py-4">Tipo</th>
+                    <th className="px-6 py-4">Estado</th>
+                    <th className="px-6 py-4">LPR</th>
+                    <th className="px-6 py-4">Foto Perimetral</th>
+                    <th className="px-6 py-4 text-center">Detalle</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {justifiedTickets.length > 0 ? (
+                    justifiedTickets.map((ticket) => (
+                      <tr key={ticket.id} className="hover:bg-emerald-50/30 transition-colors">
+                        <td className="px-6 py-4 font-mono text-sm font-bold text-[#001F3F]">{ticket.id}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{ticket.equipo}</td>
+                        <td className="px-6 py-4 text-sm text-slate-500">{ticket.fecha}</td>
+                        <td className="px-6 py-4"><span className="font-bold text-slate-700 font-mono">{ticket.matricula}</span></td>
+                        <td className="px-6 py-4 text-sm text-slate-600 font-medium">{ticket.justificationData?.selectedReason || '-'}</td>
+                        <td className="px-6 py-4">
+                          {ticket.justificationData?.justificationType === 'no_justificada' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                              <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                              No Justificado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                              Justificado
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4"><PhotoPlaceholder /></td>
+                        <td className="px-6 py-4"><PhotoPlaceholder /></td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => setDetailsTicket(ticket)}
+                            className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors mx-auto"
+                            title="Ver Detalle"
+                          >
+                            Ver
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
+                        No hay tickets justificados en este periodo.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
