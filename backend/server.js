@@ -3254,4 +3254,11 @@ const startServer = async () => {
   }
 };
 
-void startServer();
+if (process.env.VERCEL !== '1') {
+  void startServer();
+} else {
+  const connInfo = getDatabaseConnectionInfo();
+  console.log(`DB connection host: ${connInfo.host} (${connInfo.usingPooler ? 'pooler' : 'direct'})`);
+}
+
+export default app;
