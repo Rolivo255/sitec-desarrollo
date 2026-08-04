@@ -12,6 +12,7 @@ const DistribucionFacturaView = lazy(() => import("./components/nomina/Distribuc
 const BancosView = lazy(() => import("./components/pagos/BancosView"));
 const SolicitudAccesoriosTabsView = lazy(() => import("./components/mantenimiento/SolicitudAccesoriosTabsView"));
 const PyGView = lazy(() => import("./components/contabilidad/PyGView"));
+const RecaudacionView = lazy(() => import("./components/contabilidad/RecaudacionView"));
 
 interface PlaceholderContent {
   title: string;
@@ -104,6 +105,8 @@ function App() {
         return <BancosView />;
       case 'pyg':
         return <PyGView />;
+      case 'recaudacion':
+        return <RecaudacionView />;
       case 'descuentos':
         return <GestionDescuentosTabsView />;
       case 'valets_fijos':
@@ -264,6 +267,7 @@ function App() {
                 <button onClick={() => setActiveTab('bancos')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('bancos') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Bancos</button>
                 <button onClick={() => setActiveTab('presupuestos')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('presupuestos') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Presupuestos</button>
                 <button onClick={() => setActiveTab('cajas_chicas')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('cajas_chicas') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Cajas Chicas</button>
+                <button onClick={() => setActiveTab('recaudacion')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('recaudacion') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Recaudación</button>
               </div>
             )}
           </div>
