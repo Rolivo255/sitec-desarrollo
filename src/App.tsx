@@ -9,6 +9,7 @@ const GestionDescuentosTabsView = lazy(() => import("./components/nomina/Gestion
 const ValetsFijosView = lazy(() => import("./components/nomina/ValetsFijosView"));
 const ConfiguracionDistribucionView = lazy(() => import("./components/nomina/ConfiguracionDistribucionView.tsx"));
 const DistribucionFacturaView = lazy(() => import("./components/nomina/DistribucionFacturaView.tsx"));
+const ProcesamientoNominazView = lazy(() => import("./components/nomina/ProcesamientoNominazView"));
 const BancosView = lazy(() => import("./components/pagos/BancosView"));
 const SolicitudAccesoriosTabsView = lazy(() => import("./components/mantenimiento/SolicitudAccesoriosTabsView"));
 const PyGView = lazy(() => import("./components/contabilidad/PyGView"));
@@ -113,6 +114,8 @@ function App() {
         return <ValetsFijosView />;
       case 'humana':
         return <HumanaView />;
+      case 'procesamiento_nominaz':
+        return <ProcesamientoNominazView />;
       case 'configuracion_distribucion':
         return <ConfiguracionDistribucionView />;
       case 'distribucion_factura':
@@ -238,6 +241,7 @@ function App() {
                 <button onClick={() => setActiveTab('horas')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('horas') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Registro de horas</button>
                 <button onClick={() => setActiveTab('humana')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('humana') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Humana</button>
                 <button onClick={() => setActiveTab('solicitud_accesorios')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('solicitud_accesorios') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Solicitud Accesorios</button>
+                <button onClick={() => setActiveTab('procesamiento_nominaz')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('procesamiento_nominaz') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Procesamiento a Nominaz</button>
               </div>
             )}
           </div>
