@@ -111,12 +111,14 @@ const ProcesamientoNominazView = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 border border-emerald-100 text-emerald-500 hover:bg-emerald-100 transition-colors" title="Procesar General">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 text-[12px] font-semibold hover:bg-emerald-100 transition-colors" title="Procesar General">
                 <IconoNominaz />
+                Procesar General
               </button>
               {rubro.hasDistribuido && (
-                <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#004E7C] text-white hover:bg-[#003b5e] transition-colors" title="Procesar Distribuido">
-                  <List size={14} strokeWidth={2.5} />
+                <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#004E7C] text-white text-[12px] font-semibold hover:bg-[#003b5e] transition-colors" title="Procesar Distribuido">
+                  <IconoNominaz />
+                  Procesar Distribuido
                 </button>
               )}
             </div>
