@@ -105,7 +105,7 @@ const ProcesamientoNominazView = () => {
               >
                 {rubro.icon}
               </div>
-              <h4 className={`text-[14px] font-medium ${rubro.color === 'purple' ? 'text-purple-600' : 'text-[#004E7C]'}`}>
+              <h4 className={`text-[16px] font-medium ${rubro.color === 'purple' ? 'text-purple-600' : 'text-[#004E7C]'}`}>
                 {rubro.titulo}
               </h4>
             </div>
@@ -129,11 +129,11 @@ const ProcesamientoNominazView = () => {
         <div className="p-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
           <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#004E7C] text-white font-medium text-[13px] hover:bg-[#003b5e] transition-colors shadow-sm">
             <IconoNominaz />
-            Procesar/Reprocesar General
+            Procesar General
           </button>
           <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#004E7C] text-white font-medium text-[13px] hover:bg-[#003b5e] transition-colors shadow-sm">
             <List size={16} strokeWidth={2.5} />
-            Procesar Distribuido General
+            Procesar Distribuido
           </button>
         </div>
       </div>
