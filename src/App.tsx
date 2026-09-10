@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key } from 'lucide-react';
 import { Placeholder } from "./components/commons/Placeholder";
+import LucidBotWebchat from "./components/LucidBotWebchat";
 
 const TicketsView = lazy(() => import("./components/operaciones/TicketsView"));
 const PagosView = lazy(() => import("./components/pagos/PagosView"));
@@ -135,6 +136,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-800">
+      <LucidBotWebchat />
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-slate-900/20 backdrop-blur-[1px] lg:hidden"
