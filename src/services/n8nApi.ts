@@ -8,6 +8,8 @@ export const N8N_API_CATALOG = {
   familiaresEmpleados: '/api/n8n/webhook/detalle/familiares/nomina',
   empleadosDistribucion: '/api/n8n/webhook/empleados/distribucion',
   descuentosVariosSitec: '/api/n8n/webhook/descuentos/varios/sitec',
+  reporteRecaudacionDetalle: '/api/n8n/webhook/reporte/recaudacion/detalle',
+  reporteTransferenciaDetalle: '/api/n8n/webhook/reporte/transferencia/detalle',
 } as const;
 
 interface N8nOrdenCompraPayload {
@@ -231,6 +233,84 @@ export const n8nPostDirect = async <T = unknown>(input: N8nDirectPostInput): Pro
 
   return await parseJsonResponse<T>(response, {} as T);
 };
+
+export interface ReporteRecaudacionDetalleItem {
+  estado?: string | null;
+  id?: number | string | null;
+  fecha?: string | null;
+  codigo?: string | null;
+  concepto?: string | null;
+  tipo?: string | null;
+  documento?: string | null;
+  oficina?: string | null;
+  monto?: number | string | null;
+  created_at?: string | null;
+  fecha_registro?: string | null;
+  parqueadero?: string | null;
+  centro_costo?: string | null;
+  total_deposito?: string | null;
+  total_transferencia?: string | null;
+  banco?: string | null;
+  comprobante?: string | null;
+  num_cuenta?: string | null;
+}
+
+const postReporteDetalle = async <T extends object>(
+  endpoint: string,
+  trOtro: string,
+  fechaReporte: string
+): Promise<T[]> => {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: buildHeaders(),
+    body: JSON.stringify({ trOtro, fechaReporte }),
+  });
+
+  const raw = await response.text();
+  let parsed: unknown = null;
+  if (raw.trim()) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  // Estos webhooks de n8n pueden responder con codigos HTTP no estandar (ej. 442)
+  // aun cuando el workflow corrio bien y devolvio datos validos, por lo que
+  // se confia primero en el cuerpo JSON en vez del status HTTP; solo se trata
+  // como error real cuando no hay nada parseable o el cuerpo trae un "error".
+  const esObjetoConError = Boolean(
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'error' in (parsed as Record<string, unknown>)
+  );
+
+  if (parsed === null || esObjetoConError) {
+    const mensaje = esObjetoConError
+      ? String((parsed as { error?: unknown }).error)
+      : (response.statusText || `HTTP ${response.status}`);
+    throw new Error(mensaje);
+  }
+
+  const lista = Array.isArray(parsed) ? parsed : [parsed];
+  // El webhook puede omitir campos, devolver entradas nulas o un objeto vacio
+  // cuando no hay datos para cruzar; se descartan esas filas y el resto se
+  // completa con valores en blanco al mapear (ver DetalleBusquedaView).
+  return (lista as T[]).filter(
+    (item): item is T => Boolean(item) && Object.keys(item).length > 0
+  );
+};
+
+export const getReporteRecaudacionDetalle = async (
+  trOtro: string,
+  fechaReporte: string
+): Promise<ReporteRecaudacionDetalleItem[]> =>
+  postReporteDetalle<ReporteRecaudacionDetalleItem>(N8N_API_CATALOG.reporteRecaudacionDetalle, trOtro, fechaReporte);
+
+export const getReporteTransferenciaDetalle = async (
+  trOtro: string,
+  fechaReporte: string
+): Promise<ReporteRecaudacionDetalleItem[]> =>
+  postReporteDetalle<ReporteRecaudacionDetalleItem>(N8N_API_CATALOG.reporteTransferenciaDetalle, trOtro, fechaReporte);
 
 export const extraerOrdenCompraDesdeImagenN8n = async (imageUrl: string): Promise<N8nOrdenCompraExtract> => {
   const payloadRaw = await n8nPostDirect<N8nOrdenCompraPayload | N8nOrdenCompraPayload[]>({

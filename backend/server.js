@@ -1161,6 +1161,431 @@ app.post('/api/contabilidad/pyg/ejecutar-sp', async (req, res) => {
   }
 });
 
+const TABLAS_LIQUIDACION_BANCOS = {
+  pichincha: 'Banco_Pichincha',
+  pichincha_ahorros: 'Banco_Pichincha_Ahorros',
+  internacional: 'Banco_Internacional',
+  internacional_pp: 'Banco_Internacional_PP',
+};
+
+const NOMBRES_LIQUIDACION_BANCOS = {
+  pichincha: 'Banco Pichincha',
+  pichincha_ahorros: 'Banco Pichincha Ahorros',
+  internacional: 'Banco Internacional',
+  internacional_pp: 'Banco Internacional PP',
+};
+
+// Numeros de cuenta fijos por banco; se guardan como texto para no perder
+// los ceros a la izquierda de los bancos internacionales.
+const NUM_CUENTA_LIQUIDACION_BANCOS = {
+  pichincha: '3395938904',
+  pichincha_ahorros: '2212752593',
+  internacional: '0800141807',
+  internacional_pp: '0800633276',
+};
+
+const ensureColumnaBancoLiquidacion = async (tabla) => {
+  await pool.query(`ALTER TABLE "${tabla}" ADD COLUMN IF NOT EXISTS banco VARCHAR(50)`);
+  await pool.query(`ALTER TABLE "${tabla}" ADD COLUMN IF NOT EXISTS num_cuenta VARCHAR(20)`);
+};
+
+const ensureHistorialLiquidacionBancosTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Historial_Liquidacion_Bancos" (
+      id BIGSERIAL PRIMARY KEY,
+      banco VARCHAR(30) NOT NULL,
+      archivo VARCHAR(255) NOT NULL,
+      fecha_carga TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      total INTEGER NOT NULL DEFAULT 0,
+      duplicados INTEGER NOT NULL DEFAULT 0,
+      cargados INTEGER NOT NULL DEFAULT 0,
+      estado VARCHAR(30) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+};
+
+const registrarHistorialLiquidacionBanco = async ({ banco, archivo, total, duplicados, cargados, estado }) => {
+  await ensureHistorialLiquidacionBancosTable();
+  const result = await pool.query(
+    `INSERT INTO "Historial_Liquidacion_Bancos" (banco, archivo, total, duplicados, cargados, estado)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, banco, archivo, fecha_carga, total, duplicados, cargados, estado`,
+    [banco, archivo, total, duplicados, cargados, estado]
+  );
+  return result.rows[0];
+};
+
+const parseFechaDDMMYYYYaISO = (value) => {
+  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+};
+
+const claveDuplicadoLiquidacionBanco = (fecha, documento, monto) => `${fecha}|${documento}|${monto.toFixed(2)}`;
+
+const procesarCargaLiquidacionBanco = async (tabla, filasInput, nombreBanco, numCuenta) => {
+  await ensureColumnaBancoLiquidacion(tabla);
+
+  const filas = (Array.isArray(filasInput) ? filasInput : [])
+    .map((fila) => {
+      const monto = Number(Number(fila?.monto || 0).toFixed(2));
+      return {
+        fecha: parseFechaDDMMYYYYaISO(fila?.fecha),
+        codigo: String(fila?.codigo ?? '').trim(),
+        concepto: String(fila?.concepto ?? '').trim(),
+        tipo: String(fila?.tipo ?? '').trim(),
+        documento: String(fila?.documento ?? '').trim(),
+        oficina: String(fila?.oficina ?? '').trim(),
+        monto,
+      };
+    })
+    .filter((fila) => fila.fecha && fila.documento && Number.isFinite(fila.monto));
+
+  const total = filas.length;
+
+  if (total === 0) {
+    return { total: 0, duplicados: 0, cargados: 0, estado: 'error' };
+  }
+
+  const existentes = await pool.query(
+    `SELECT t.fecha::text AS fecha, t.documento, t.monto
+     FROM "${tabla}" AS t
+     JOIN (
+       SELECT unnest($1::date[]) AS fecha, unnest($2::text[]) AS documento, unnest($3::numeric[]) AS monto
+     ) AS input USING (fecha, documento, monto)`,
+    [filas.map((f) => f.fecha), filas.map((f) => f.documento), filas.map((f) => f.monto)]
+  );
+
+  const vistos = new Set(
+    existentes.rows.map((row) => claveDuplicadoLiquidacionBanco(row.fecha, row.documento, Number(row.monto)))
+  );
+
+  let duplicados = 0;
+  let cargados = 0;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const fila of filas) {
+      const key = claveDuplicadoLiquidacionBanco(fila.fecha, fila.documento, fila.monto);
+      if (vistos.has(key)) {
+        duplicados += 1;
+        continue;
+      }
+
+      await client.query(
+        `INSERT INTO "${tabla}" (fecha, codigo, concepto, tipo, documento, oficina, monto, banco, num_cuenta)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [fila.fecha, fila.codigo, fila.concepto, fila.tipo, fila.documento, fila.oficina, fila.monto, nombreBanco, numCuenta]
+      );
+      vistos.add(key);
+      cargados += 1;
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const estado = cargados === total ? 'exito' : cargados === 0 ? 'error' : 'parcial';
+
+  return { total, duplicados, cargados, estado };
+};
+
+const registrarUploadLiquidacionBanco = (ruta, tabla, etiqueta, bancoKey) => {
+  app.post(ruta, async (req, res) => {
+    const nombreArchivo = String(req.body?.nombreArchivo || '').trim();
+    const filas = req.body?.filas;
+
+    if (!nombreArchivo) {
+      res.status(400).json({ error: 'El campo nombreArchivo es requerido' });
+      return;
+    }
+
+    try {
+      const resultado = await procesarCargaLiquidacionBanco(tabla, filas, NOMBRES_LIQUIDACION_BANCOS[bancoKey], NUM_CUENTA_LIQUIDACION_BANCOS[bancoKey]);
+      const registro = await registrarHistorialLiquidacionBanco({
+        banco: bancoKey,
+        archivo: nombreArchivo,
+        total: resultado.total,
+        duplicados: resultado.duplicados,
+        cargados: resultado.cargados,
+        estado: resultado.estado,
+      });
+      res.status(200).json({
+        id: registro.id,
+        nombreArchivo,
+        fecha: registro.fecha_carga.toISOString(),
+        ...resultado,
+      });
+    } catch (error) {
+      console.error(`[POST ${ruta}] Error:`, error instanceof Error ? error.message : String(error));
+      res.status(500).json({
+        error: `No se pudo procesar la carga de ${etiqueta}`,
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+};
+
+registrarUploadLiquidacionBanco(
+  '/api/contabilidad/liquidacion-bancos/pichincha/upload',
+  TABLAS_LIQUIDACION_BANCOS.pichincha,
+  'Banco Pichincha',
+  'pichincha'
+);
+
+registrarUploadLiquidacionBanco(
+  '/api/contabilidad/liquidacion-bancos/pichincha-ahorros/upload',
+  TABLAS_LIQUIDACION_BANCOS.pichincha_ahorros,
+  'Banco Pichincha Ahorros',
+  'pichincha_ahorros'
+);
+
+// Banco Internacional / Internacional PP: el archivo trae 3 filas de metadata,
+// encabezados reales en la fila 4 (indice 3) y datos desde la fila 5 (indice 4).
+// La columna A siempre esta vacia y "Descripcion" / "Referencia Adicional" son
+// celdas combinadas que dejan una columna vacia intermedia, por lo que se lee
+// todo como array de arrays (header:1) y se accede por posicion fija, no por nombre:
+//   0: (vacia)  1: Fecha  2: Cod.  3: Descripcion  4: (vacia, merge)
+//   5: Referencia Adicional  6: (vacia, merge)  7: Debito  8: Credito  9: Ciudad
+// La columna "Descripcion" trae documento y concepto juntos ("00000326634 DEPOSITO M/E").
+const quitarDiacriticos = (value) => value
+  .normalize('NFD')
+  .split('')
+  .filter((ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 0x0300 || code > 0x036f;
+  })
+  .join('');
+
+const normalizarTextoEncabezado = (value) => quitarDiacriticos(String(value ?? ''))
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+const validarEncabezadoBancoInternacional = (filasCrudas) => {
+  const filaEncabezado = filasCrudas[3];
+  if (!Array.isArray(filaEncabezado) || filaEncabezado.length < 4) {
+    return false;
+  }
+  return normalizarTextoEncabezado(filaEncabezado[1]) === 'fecha'
+    && normalizarTextoEncabezado(filaEncabezado[3]) === 'descripcion';
+};
+
+const parseNumeroCelda = (valor) => {
+  if (typeof valor === 'number' && Number.isFinite(valor)) {
+    return Number(valor.toFixed(2));
+  }
+
+  const texto = String(valor ?? '').trim().replace(/[^0-9,.-]/g, '');
+  if (!texto) return 0;
+
+  const normalizado = texto.includes(',') && !texto.includes('.')
+    ? texto.replace(',', '.')
+    : texto.replace(/,/g, '');
+
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? Number(numero.toFixed(2)) : 0;
+};
+
+const claveDuplicadoBancoInternacional = (fecha, documento, debito, credito) =>
+  `${fecha}|${documento}|${debito.toFixed(2)}|${credito.toFixed(2)}`;
+
+// Solo para Banco Internacional / Internacional PP: el documento se sube sin
+// ceros a la izquierda (ej. "00000136636" -> "136636"). Se conserva al menos
+// un digito si el numero es todo ceros.
+const quitarCerosIzquierda = (valor) => {
+  const texto = String(valor ?? '').trim();
+  return texto.replace(/^0+(?=\d)/, '');
+};
+
+const procesarCargaBancoInternacional = async (tabla, filasCrudas, nombreBanco, numCuenta) => {
+  if (!Array.isArray(filasCrudas) || !validarEncabezadoBancoInternacional(filasCrudas)) {
+    const error = new Error('Estructura de archivo no válida para BANCO INTERNACIONAL');
+    error.esErrorEstructura = true;
+    throw error;
+  }
+
+  await ensureColumnaBancoLiquidacion(tabla);
+
+  const filas = filasCrudas
+    .slice(4)
+    .filter((fila) => Array.isArray(fila) && fila.some((celda) => String(celda ?? '').trim() !== ''))
+    .map((fila) => {
+      const fechaTexto = String(fila[1] ?? '').trim();
+      const descripcion = String(fila[3] ?? '').trim();
+      const primerEspacio = descripcion.indexOf(' ');
+      const documentoCrudo = (primerEspacio === -1 ? descripcion : descripcion.slice(0, primerEspacio)).trim();
+      const documento = quitarCerosIzquierda(documentoCrudo);
+      const concepto = (primerEspacio === -1 ? '' : descripcion.slice(primerEspacio + 1)).trim();
+      const referenciaAdicional = String(fila[5] ?? '').trim();
+
+      return {
+        fecha: /^\d{4}-\d{2}-\d{2}$/.test(fechaTexto) ? fechaTexto : null,
+        cod: String(fila[2] ?? '').trim(),
+        documento,
+        concepto,
+        referencia_adicional: referenciaAdicional || null,
+        debito: parseNumeroCelda(fila[7]),
+        credito: parseNumeroCelda(fila[8]),
+        ciudad: String(fila[9] ?? '').trim(),
+      };
+    })
+    .filter((fila) => fila.fecha && fila.documento);
+
+  const total = filas.length;
+
+  if (total === 0) {
+    return { total: 0, duplicados: 0, cargados: 0, estado: 'error' };
+  }
+
+  const existentes = await pool.query(
+    `SELECT t.fecha::text AS fecha, t.documento, t.debito, t.credito
+     FROM "${tabla}" AS t
+     JOIN (
+       SELECT unnest($1::date[]) AS fecha, unnest($2::text[]) AS documento,
+              unnest($3::numeric[]) AS debito, unnest($4::numeric[]) AS credito
+     ) AS input USING (fecha, documento, debito, credito)`,
+    [
+      filas.map((f) => f.fecha),
+      filas.map((f) => f.documento),
+      filas.map((f) => f.debito),
+      filas.map((f) => f.credito),
+    ]
+  );
+
+  const vistos = new Set(
+    existentes.rows.map((row) =>
+      claveDuplicadoBancoInternacional(row.fecha, row.documento, Number(row.debito), Number(row.credito))
+    )
+  );
+
+  let duplicados = 0;
+  let cargados = 0;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const fila of filas) {
+      const key = claveDuplicadoBancoInternacional(fila.fecha, fila.documento, fila.debito, fila.credito);
+      if (vistos.has(key)) {
+        duplicados += 1;
+        continue;
+      }
+
+      await client.query(
+        `INSERT INTO "${tabla}" (fecha, cod, documento, concepto, referencia_adicional, debito, credito, ciudad, banco, num_cuenta)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [fila.fecha, fila.cod, fila.documento, fila.concepto, fila.referencia_adicional, fila.debito, fila.credito, fila.ciudad, nombreBanco, numCuenta]
+      );
+      vistos.add(key);
+      cargados += 1;
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const estado = cargados === total ? 'exito' : cargados === 0 ? 'error' : 'parcial';
+
+  return { total, duplicados, cargados, estado };
+};
+
+const registrarUploadBancoInternacional = (ruta, tabla, etiqueta, bancoKey) => {
+  app.post(ruta, async (req, res) => {
+    const nombreArchivo = String(req.body?.nombreArchivo || '').trim();
+    const filas = req.body?.filas;
+
+    if (!nombreArchivo) {
+      res.status(400).json({ error: 'El campo nombreArchivo es requerido' });
+      return;
+    }
+
+    try {
+      const resultado = await procesarCargaBancoInternacional(tabla, filas, NOMBRES_LIQUIDACION_BANCOS[bancoKey], NUM_CUENTA_LIQUIDACION_BANCOS[bancoKey]);
+      const registro = await registrarHistorialLiquidacionBanco({
+        banco: bancoKey,
+        archivo: nombreArchivo,
+        total: resultado.total,
+        duplicados: resultado.duplicados,
+        cargados: resultado.cargados,
+        estado: resultado.estado,
+      });
+      res.status(200).json({
+        id: registro.id,
+        nombreArchivo,
+        fecha: registro.fecha_carga.toISOString(),
+        ...resultado,
+      });
+    } catch (error) {
+      if (error && error.esErrorEstructura) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+
+      console.error(`[POST ${ruta}] Error:`, error instanceof Error ? error.message : String(error));
+      res.status(500).json({
+        error: `No se pudo procesar la carga de ${etiqueta}`,
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+};
+
+registrarUploadBancoInternacional(
+  '/api/contabilidad/liquidacion-bancos/internacional/upload',
+  TABLAS_LIQUIDACION_BANCOS.internacional,
+  'Banco Internacional',
+  'internacional'
+);
+
+registrarUploadBancoInternacional(
+  '/api/contabilidad/liquidacion-bancos/internacional-pp/upload',
+  TABLAS_LIQUIDACION_BANCOS.internacional_pp,
+  'Banco Internacional PP',
+  'internacional_pp'
+);
+
+app.get('/api/contabilidad/liquidacion-bancos/historial', async (_req, res) => {
+  try {
+    await ensureHistorialLiquidacionBancosTable();
+
+    const result = await pool.query(
+      `SELECT id, banco, archivo, fecha_carga, total, duplicados, cargados, estado
+       FROM "Historial_Liquidacion_Bancos"
+       ORDER BY fecha_carga DESC
+       LIMIT 20`
+    );
+
+    res.status(200).json({
+      historial: result.rows.map((row) => ({
+        id: row.id,
+        banco: row.banco,
+        archivo: row.archivo,
+        fecha: row.fecha_carga.toISOString(),
+        total: row.total,
+        duplicados: row.duplicados,
+        cargados: row.cargados,
+        estado: row.estado,
+      })),
+    });
+  } catch (error) {
+    console.error('[GET /api/contabilidad/liquidacion-bancos/historial] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({
+      error: 'No se pudo obtener el historial de cargas',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 app.get('/api/humana/periods', async (_req, res) => {
   try {
     console.log('[GET /api/humana/periods] Obteniendo periodos disponibles');
