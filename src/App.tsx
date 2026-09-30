@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key, Loader2, Briefcase } from 'lucide-react';
+import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key, Loader2, Briefcase, Home, AlertTriangle } from 'lucide-react';
 import { Placeholder } from "./components/commons/Placeholder";
 import LucidBotWebchat from "./components/LucidBotWebchat";
 import LoginView from "./components/auth/LoginView";
 import { useAuth } from "./contexts/useAuth";
 
+const InicioView = lazy(() => import("./components/inicio/InicioView"));
 const TicketsView = lazy(() => import("./components/operaciones/TicketsView"));
 const PagosView = lazy(() => import("./components/pagos/PagosView"));
 const HumanaView = lazy(() => import("./components/nomina/HumanaView"));
@@ -73,7 +74,8 @@ function App() {
     if (typeof window === 'undefined') return true;
     return window.innerWidth >= 1024;
   });
-  const [activeTab, setActiveTab] = useState('tickets');
+  const [activeTab, setActiveTab] = useState('inicio');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<MenuState>({
     operaciones: false,
     contabilidad: false,
@@ -113,12 +115,15 @@ function App() {
   }
 
   const isItemActive = (id: string) => activeTab === id;
+  const esTabInicio = activeTab === 'inicio';
   const esTabDescuentos = activeTab === 'descuentos';
   const esTabConfiguracionDistribucion = activeTab === 'configuracion_distribucion';
   const esTabDistribucionFactura = activeTab === 'distribucion_factura';
 
   const renderActiveContent = () => {
     switch (activeTab) {
+      case 'inicio':
+        return <InicioView />;
       case 'tickets':
         return <TicketsView />;
       case 'pagos':
@@ -173,7 +178,7 @@ function App() {
       {/* SIDEBAR */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 text-slate-600 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 flex flex-col overflow-hidden`}>
         {/* LOGO */}
-        <div className="p-8 pb-4 flex items-center justify-start flex-shrink-0 cursor-pointer" onClick={() => setActiveTab('tickets')}>
+        <div className="p-8 pb-4 flex items-center justify-start flex-shrink-0 cursor-pointer" onClick={() => setActiveTab('inicio')}>
           <div className="flex items-center gap-2 text-orange-500">
             <Cpu size={32} strokeWidth={2.5} />
             <span className="text-[32px] leading-none font-medium tracking-wide text-[#2173B9] uppercase">SITEC</span>
@@ -347,7 +352,7 @@ function App() {
             </div>
           </div>
           <button className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium"><Key size={18} />Llaves de acceso</button>
-          <button onClick={() => void signOut()} className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium"><LogOut size={18} />Cerrar sesión</button>
+          <button onClick={() => setShowLogoutConfirm(true)} className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium"><LogOut size={18} />Cerrar sesión</button>
         </div>
       </aside>
 
@@ -358,7 +363,15 @@ function App() {
           <div className="flex items-center gap-4">
             <button onClick={toggleSidebar} className="p-2 hover:bg-slate-100 rounded-lg lg:hidden"><Menu size={24} /></button>
             {activeTab !== 'tickets' && (
-              esTabDescuentos ? (
+              esTabInicio ? (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-slate-50 rounded-lg text-slate-500"><Home size={20} /></div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-700">SITEC-DSP</h2>
+                    <p className="text-xs text-slate-500">Bienvenido al sistema de gestión de clientes y proveedores</p>
+                  </div>
+                </div>
+              ) : esTabDescuentos ? (
                 <div>
                   <h2 className="text-lg font-bold text-slate-700">Gestión de descuentos</h2>
                   <p className="text-xs text-slate-500">Control de descuentos salariales</p>
@@ -403,6 +416,35 @@ function App() {
           </div>
         </div>
       </main>
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-[420px] shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-8 flex flex-col items-center text-center">
+              <div className="mb-4 text-orange-500">
+                <AlertTriangle size={48} strokeWidth={1.5} />
+              </div>
+              <h3 className="text-[17px] font-bold text-slate-800 mb-2">¿Estás seguro que quieres cerrar sesión?</h3>
+              <p className="text-[13px] text-slate-500 leading-relaxed">Tendrás que volver a ingresar tu correo y contraseña para acceder de nuevo.</p>
+            </div>
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-center gap-4">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-8 py-2.5 rounded-full border border-slate-300 text-slate-600 font-medium hover:bg-white transition-colors w-1/2"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { setShowLogoutConfirm(false); void signOut(); }}
+                className="px-8 py-2.5 rounded-full bg-[#DC2626] text-white font-medium hover:bg-red-700 shadow-sm transition-colors w-1/2"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
