@@ -3645,6 +3645,402 @@ app.get('/api/accesorios/archivos/:solicitudId', async (req, res) => {
   }
 });
 
+/* ─────────────────────── PROYECTOS: PLANTILLA PROVEEDOR ─────────────────────── */
+
+const ensurePlantillaProveedorTables = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Plantilla_Proveedor_Categorias" (
+      id BIGSERIAL PRIMARY KEY,
+      nombre VARCHAR(100) NOT NULL,
+      proveedor VARCHAR(100) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Plantilla_Proveedor" (
+      id BIGSERIAL PRIMARY KEY,
+      codigo VARCHAR(30) NOT NULL,
+      categoria_id BIGINT NOT NULL REFERENCES "Plantilla_Proveedor_Categorias"(id) ON DELETE RESTRICT,
+      nombre_equipo VARCHAR(150) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Plantilla_Proveedor_Componentes" (
+      id BIGSERIAL PRIMARY KEY,
+      equipo_id BIGINT NOT NULL REFERENCES "Plantilla_Proveedor"(id) ON DELETE CASCADE,
+      nombre VARCHAR(150) NOT NULL,
+      costo NUMERIC(14,2),
+      moneda VARCHAR(3),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+};
+
+const generarCodigoEquipo = (proveedor, categoriaNombre, nombreEquipo) => {
+  const prefijo = (texto) => String(texto || '').trim().substring(0, 3).toUpperCase() || '---';
+  return `${prefijo(proveedor)}-${prefijo(categoriaNombre)}-${prefijo(nombreEquipo)}`;
+};
+
+app.get('/api/proyectos/plantilla-proveedor/categorias', async (_req, res) => {
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(
+      `SELECT id, nombre, proveedor, created_at FROM "Plantilla_Proveedor_Categorias" ORDER BY nombre ASC`
+    );
+    res.status(200).json({ categorias: result.rows });
+  } catch (error) {
+    console.error('[GET /api/proyectos/plantilla-proveedor/categorias] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron obtener las categorías', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/proyectos/plantilla-proveedor/categorias', async (req, res) => {
+  const nombre = String(req.body?.nombre || '').trim();
+  const proveedor = String(req.body?.proveedor || '').trim();
+
+  if (!nombre || !proveedor) {
+    res.status(400).json({ error: 'Los campos nombre y proveedor son requeridos' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(
+      `INSERT INTO "Plantilla_Proveedor_Categorias" (nombre, proveedor) VALUES ($1, $2) RETURNING id, nombre, proveedor, created_at`,
+      [nombre, proveedor]
+    );
+    res.status(201).json({ categoria: result.rows[0] });
+  } catch (error) {
+    console.error('[POST /api/proyectos/plantilla-proveedor/categorias] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo crear la categoría', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.put('/api/proyectos/plantilla-proveedor/categorias/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const nombre = String(req.body?.nombre || '').trim();
+  const proveedor = String(req.body?.proveedor || '').trim();
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+  if (!nombre || !proveedor) {
+    res.status(400).json({ error: 'Los campos nombre y proveedor son requeridos' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(
+      `UPDATE "Plantilla_Proveedor_Categorias" SET nombre = $2, proveedor = $3 WHERE id = $1 RETURNING id, nombre, proveedor, created_at`,
+      [id, nombre, proveedor]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Categoría no encontrada' });
+      return;
+    }
+    res.status(200).json({ categoria: result.rows[0] });
+  } catch (error) {
+    console.error('[PUT /api/proyectos/plantilla-proveedor/categorias/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo actualizar la categoría', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.delete('/api/proyectos/plantilla-proveedor/categorias/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(`DELETE FROM "Plantilla_Proveedor_Categorias" WHERE id = $1 RETURNING id`, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Categoría no encontrada' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    if (error && error.code === '23503') {
+      res.status(409).json({ error: 'No se puede eliminar: hay equipos que usan esta categoría' });
+      return;
+    }
+    console.error('[DELETE /api/proyectos/plantilla-proveedor/categorias/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo eliminar la categoría', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.get('/api/proyectos/plantilla-proveedor/equipos', async (_req, res) => {
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(`
+      SELECT
+        e.id, e.codigo, e.nombre_equipo, e.created_at,
+        c.id AS categoria_id, c.nombre AS categoria_nombre, c.proveedor,
+        COUNT(comp.id)::int AS componentes_count,
+        COALESCE(SUM(comp.costo), 0) AS costo_total,
+        MIN(comp.moneda) AS moneda
+      FROM "Plantilla_Proveedor" e
+      JOIN "Plantilla_Proveedor_Categorias" c ON c.id = e.categoria_id
+      LEFT JOIN "Plantilla_Proveedor_Componentes" comp ON comp.equipo_id = e.id
+      GROUP BY e.id, e.codigo, e.nombre_equipo, e.created_at, c.id, c.nombre, c.proveedor
+      ORDER BY e.created_at DESC
+    `);
+    res.status(200).json({ equipos: result.rows });
+  } catch (error) {
+    console.error('[GET /api/proyectos/plantilla-proveedor/equipos] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron obtener los equipos', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/proyectos/plantilla-proveedor/equipos', async (req, res) => {
+  const categoriaId = Number(req.body?.categoriaId);
+  const nombreEquipo = String(req.body?.nombreEquipo || '').trim();
+
+  if (!Number.isInteger(categoriaId) || categoriaId <= 0 || !nombreEquipo) {
+    res.status(400).json({ error: 'Los campos categoriaId y nombreEquipo son requeridos' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+
+    const categoria = await pool.query(
+      `SELECT id, nombre, proveedor FROM "Plantilla_Proveedor_Categorias" WHERE id = $1`,
+      [categoriaId]
+    );
+    if (categoria.rowCount === 0) {
+      res.status(404).json({ error: 'La categoría seleccionada no existe' });
+      return;
+    }
+
+    const codigo = generarCodigoEquipo(categoria.rows[0].proveedor, categoria.rows[0].nombre, nombreEquipo);
+
+    const result = await pool.query(
+      `INSERT INTO "Plantilla_Proveedor" (codigo, categoria_id, nombre_equipo) VALUES ($1, $2, $3)
+       RETURNING id, codigo, nombre_equipo, categoria_id, created_at`,
+      [codigo, categoriaId, nombreEquipo]
+    );
+
+    res.status(201).json({
+      equipo: {
+        ...result.rows[0],
+        categoria_nombre: categoria.rows[0].nombre,
+        proveedor: categoria.rows[0].proveedor,
+        componentes_count: 0,
+        costo_total: 0,
+        moneda: null,
+      },
+    });
+  } catch (error) {
+    console.error('[POST /api/proyectos/plantilla-proveedor/equipos] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo crear el equipo', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.get('/api/proyectos/plantilla-proveedor/equipos/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+
+    const equipo = await pool.query(`
+      SELECT e.id, e.codigo, e.nombre_equipo, e.created_at,
+             c.id AS categoria_id, c.nombre AS categoria_nombre, c.proveedor
+      FROM "Plantilla_Proveedor" e
+      JOIN "Plantilla_Proveedor_Categorias" c ON c.id = e.categoria_id
+      WHERE e.id = $1
+    `, [id]);
+
+    if (equipo.rowCount === 0) {
+      res.status(404).json({ error: 'Equipo no encontrado' });
+      return;
+    }
+
+    const componentes = await pool.query(
+      `SELECT id, nombre, costo, moneda, created_at FROM "Plantilla_Proveedor_Componentes" WHERE equipo_id = $1 ORDER BY created_at ASC`,
+      [id]
+    );
+
+    res.status(200).json({ equipo: equipo.rows[0], componentes: componentes.rows });
+  } catch (error) {
+    console.error('[GET /api/proyectos/plantilla-proveedor/equipos/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo obtener el detalle del equipo', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.delete('/api/proyectos/plantilla-proveedor/equipos/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(`DELETE FROM "Plantilla_Proveedor" WHERE id = $1 RETURNING id`, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Equipo no encontrado' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[DELETE /api/proyectos/plantilla-proveedor/equipos/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo eliminar el equipo', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/proyectos/plantilla-proveedor/equipos/:id/componentes', async (req, res) => {
+  const equipoId = Number(req.params.id);
+  const nombre = String(req.body?.nombre || '').trim();
+  const tieneCosto = req.body?.costo !== undefined && req.body?.costo !== null && req.body?.costo !== '';
+  const costo = tieneCosto ? Number(req.body.costo) : null;
+  const moneda = tieneCosto ? String(req.body?.moneda || '').trim().toUpperCase() : null;
+
+  if (!Number.isInteger(equipoId) || equipoId <= 0 || !nombre) {
+    res.status(400).json({ error: 'Los campos nombre son requeridos' });
+    return;
+  }
+  if (tieneCosto && (!Number.isFinite(costo) || costo < 0)) {
+    res.status(400).json({ error: 'El costo debe ser un número válido' });
+    return;
+  }
+  if (tieneCosto && !moneda) {
+    res.status(400).json({ error: 'Debe indicar la moneda del costo' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+
+    const equipoExiste = await pool.query(`SELECT id FROM "Plantilla_Proveedor" WHERE id = $1`, [equipoId]);
+    if (equipoExiste.rowCount === 0) {
+      res.status(404).json({ error: 'Equipo no encontrado' });
+      return;
+    }
+
+    if (tieneCosto) {
+      const monedaExistente = await pool.query(
+        `SELECT DISTINCT moneda FROM "Plantilla_Proveedor_Componentes" WHERE equipo_id = $1 AND moneda IS NOT NULL LIMIT 1`,
+        [equipoId]
+      );
+      const monedaActual = monedaExistente.rows[0]?.moneda;
+      if (monedaActual && monedaActual !== moneda) {
+        res.status(409).json({
+          error: `Este equipo ya tiene componentes en ${monedaActual}. Debe usar la misma moneda (${monedaActual}) para todos los componentes del equipo.`,
+        });
+        return;
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO "Plantilla_Proveedor_Componentes" (equipo_id, nombre, costo, moneda) VALUES ($1, $2, $3, $4)
+       RETURNING id, equipo_id, nombre, costo, moneda, created_at`,
+      [equipoId, nombre, costo, moneda]
+    );
+
+    res.status(201).json({ componente: result.rows[0] });
+  } catch (error) {
+    console.error('[POST /api/proyectos/plantilla-proveedor/equipos/:id/componentes] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo agregar el componente', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.delete('/api/proyectos/plantilla-proveedor/componentes/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(`DELETE FROM "Plantilla_Proveedor_Componentes" WHERE id = $1 RETURNING id`, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Componente no encontrado' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[DELETE /api/proyectos/plantilla-proveedor/componentes/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo eliminar el componente', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+/* ─────────────────────── PROYECTOS: INVERSIONES ─────────────────────── */
+
+const ensureInversionesProyectosTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Inversiones_Proyectos" (
+      id BIGSERIAL PRIMARY KEY,
+      nombre VARCHAR(200) NOT NULL,
+      moneda VARCHAR(3) NOT NULL,
+      conversion NUMERIC(14,4),
+      desaduanizacion NUMERIC(14,2),
+      utilidad NUMERIC(6,2),
+      estado VARCHAR(30) NOT NULL DEFAULT 'Creado',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+};
+
+app.get('/api/proyectos/inversiones', async (_req, res) => {
+  try {
+    await ensureInversionesProyectosTable();
+    const result = await pool.query(
+      `SELECT id, nombre, moneda, conversion, desaduanizacion, utilidad, estado, created_at
+       FROM "Inversiones_Proyectos" ORDER BY created_at DESC`
+    );
+    res.status(200).json({ inversiones: result.rows });
+  } catch (error) {
+    console.error('[GET /api/proyectos/inversiones] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron obtener las inversiones', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/proyectos/inversiones', async (req, res) => {
+  const nombre = String(req.body?.nombre || '').trim();
+  const moneda = String(req.body?.moneda || '').trim().toUpperCase();
+  const conversion = req.body?.conversion !== undefined && req.body?.conversion !== '' ? Number(req.body.conversion) : null;
+  const desaduanizacion = req.body?.desaduanizacion !== undefined && req.body?.desaduanizacion !== '' ? Number(req.body.desaduanizacion) : null;
+  const utilidad = req.body?.utilidad !== undefined && req.body?.utilidad !== '' ? Number(req.body.utilidad) : null;
+
+  if (!nombre) {
+    res.status(400).json({ error: 'El campo nombre es requerido' });
+    return;
+  }
+  if (!moneda) {
+    res.status(400).json({ error: 'El campo moneda es requerido' });
+    return;
+  }
+
+  try {
+    await ensureInversionesProyectosTable();
+    const result = await pool.query(
+      `INSERT INTO "Inversiones_Proyectos" (nombre, moneda, conversion, desaduanizacion, utilidad, estado)
+       VALUES ($1, $2, $3, $4, $5, 'Creado')
+       RETURNING id, nombre, moneda, conversion, desaduanizacion, utilidad, estado, created_at`,
+      [nombre, moneda, conversion, desaduanizacion, utilidad]
+    );
+    res.status(201).json({ inversion: result.rows[0] });
+  } catch (error) {
+    console.error('[POST /api/proyectos/inversiones] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo crear la inversión', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
 
 const startServer = async () => {
   try {
@@ -3670,6 +4066,8 @@ const startServer = async () => {
     await ensureDistribucionPlantillasTable();
     await ensureEmpleadoDistribucionPlantillaTable();
     await ensureAccesoriosTable();
+    await ensurePlantillaProveedorTables();
+    await ensureInversionesProyectosTable();
     app.listen(PORT, () => {
       console.log(`humana-backend escuchando en http://localhost:${PORT}`);
     });

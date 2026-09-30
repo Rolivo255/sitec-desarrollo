@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key, Loader2 } from 'lucide-react';
+import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key, Loader2, Briefcase } from 'lucide-react';
 import { Placeholder } from "./components/commons/Placeholder";
 import LucidBotWebchat from "./components/LucidBotWebchat";
 import LoginView from "./components/auth/LoginView";
@@ -18,6 +18,8 @@ const SolicitudAccesoriosTabsView = lazy(() => import("./components/mantenimient
 const PyGView = lazy(() => import("./components/contabilidad/PyGView"));
 const RecaudacionView = lazy(() => import("./components/contabilidad/RecaudacionView"));
 const LiquidacionBancosView = lazy(() => import("./components/contabilidad/LiquidacionBancosView"));
+const PlantillaProveedorView = lazy(() => import("./components/proyectos/PlantillaProveedorView"));
+const InversionesProyectosView = lazy(() => import("./components/proyectos/InversionesView"));
 
 interface PlaceholderContent {
   title: string;
@@ -62,6 +64,7 @@ interface MenuState {
   pagos_facturacion: boolean;
   integraciones: boolean;
   mantenimiento: boolean;
+  proyectos: boolean;
 }
 
 function App() {
@@ -78,7 +81,8 @@ function App() {
     desarrollo: false,
     pagos_facturacion: false,
     integraciones: false,
-    mantenimiento: false
+    mantenimiento: false,
+    proyectos: false
   });
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -141,6 +145,10 @@ function App() {
         return <DistribucionFacturaView />;
       case 'solicitud_accesorios':
         return <SolicitudAccesoriosTabsView />;
+      case 'plantilla_proveedor':
+        return <PlantillaProveedorView />;
+      case 'inversion_proyectos':
+        return <InversionesProyectosView />;
       default: {
         const placeholder = PLACEHOLDER_TABS[activeTab];
         if (placeholder) {
@@ -236,6 +244,20 @@ function App() {
                 <button onClick={() => setActiveTab('mant_tecnicos')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('mant_tecnicos') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Técnicos</button>
                 <button onClick={() => setActiveTab('mant_parqueaderos')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('mant_parqueaderos') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Parqueaderos</button>
                 <button onClick={() => setActiveTab('mant_planificacion')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('mant_planificacion') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Planificación y gestión</button>
+              </div>
+            )}
+          </div>
+
+          {/* PROYECTOS */}
+          <div>
+            <button onClick={() => toggleMenu('proyectos')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <div className="flex items-center gap-3"><Briefcase size={20} /><span className="text-sm font-medium">Proyectos</span></div>
+              {expandedMenus.proyectos ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+            {expandedMenus.proyectos && (
+              <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                <button onClick={() => setActiveTab('plantilla_proveedor')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('plantilla_proveedor') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Plantilla Proveedor</button>
+                <button onClick={() => setActiveTab('inversion_proyectos')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('inversion_proyectos') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Inversión</button>
               </div>
             )}
           </div>

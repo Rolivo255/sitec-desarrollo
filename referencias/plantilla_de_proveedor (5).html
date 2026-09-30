@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal SITEC Urbapark</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes zoomIn { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .fade-up { animation: fadeInUp .45s ease both; }
+        .zoom-in { animation: zoomIn .2s ease both; }
+        .spin { animation: spin 1s linear infinite; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-[#F8FAFC]">
+<div id="root"></div>
+
+<script type="text/babel" data-type="module">
+import React, { useState, useEffect, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  Calculator, Settings2, Users, LogOut, Menu, Bell, ChevronDown, ChevronRight,
+  CreditCard, Ticket, Building, Filter, Download, Calendar, Clock, AlertCircle,
+  MoreVertical, Car, Upload, X, Save, FileCheck, CheckCircle2, List,
+  Store, Wallet, Landmark, FileUp, FileText, Check, AlertTriangle, RotateCw,
+  Video, Camera, Image as ImageIcon, User, Loader2, History, Layers, Eye,
+  Bike, BarChart3, PiggyBank, Receipt, Bus, Gift, Banknote, Smartphone,
+  Utensils, Percent, Network, Server, ClipboardList, ShieldCheck, Key,
+  Trash2, Plus, Pencil, ChevronLeft, ChevronUp, Unlock, Cpu, Wrench,
+  LayoutList, MapPin, Play, Send, Copy, Search, ShoppingCart, File,
+  ArrowUpDown, Briefcase, Rocket, ListChecks, DollarSign
+} from 'lucide-react';
+
+/* ─────────────────────── CONSTANTS ─────────────────────── */
+const PARKING_LOTS = [
+  "18 de Septiembre","Aeropuerto","Aguacate Rumiñahui","Astecnia","Avalon Plaza",
+  "Centro Comercial El Bosque","Centro Comercial El Recreo","Centro Comercial La Y",
+  "Centro Comercial Mall del Sol","Centro Comercial Mall El Jardin",
+  "Centro Comercial Naciones Unidas","Centro Comercial Paseo San Francisco",
+  "Centro Comercial Policentro","Centro Comercial Real Plaza","Centro Comercial Scala",
+  "Ciudad Milenium","Clinica Pasteur","Hotel Colon","Hotel LeParc","Hotel Marriot",
+  "Hotel Quito","Hotel Swissotel","Supermaxi 12 de Octubre","Supermaxi San Gabriel",
+  "Torre Milenium","Village Plaza"
+];
+
+/* ─────────────────────── SMALL HELPERS ─────────────────────── */
+const EmptyState = ({ icon: Icon, title, desc }) => (
+  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-12 text-center flex flex-col items-center justify-center min-h-[400px] fade-up">
+    <div className="p-4 bg-slate-50 rounded-full mb-4 text-slate-300"><Icon size={48} /></div>
+    <h2 className="text-xl font-black text-slate-800 mb-2">{title}</h2>
+    <p className="text-slate-400 text-sm max-w-md">Este módulo se encuentra actualmente en construcción. Pronto podrás acceder a todas sus funcionalidades.</p>
+  </div>
+);
+
+const UploadButton = ({ label, icon, isVideo = false, uploadKey, uploads, onUpload, readOnly = false }) => {
+    const status = uploads && uploads[uploadKey];
+    const isDone = status === 'done';
+
+    return (
+        <div className="space-y-1">
+            <label className="text-[11px] font-bold text-slate-700 ml-1 text-center block uppercase tracking-wider">{label}</label>
+            <button 
+                onClick={() => !readOnly && onUpload && onUpload(uploadKey)}
+                disabled={(!readOnly && isDone)} 
+                className={`w-full h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all group bg-white
+                    ${status === 'loading' ? 'border-slate-300' :
+                    isDone && !readOnly ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 
+                    readOnly ? 'border-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:border-slate-400' : 
+                    'border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50'} 
+                `}
+            >
+                {status === 'loading' ? (
+                    <Loader2 size={24} className="animate-spin text-blue-500" />
+                ) : isDone && !readOnly ? (
+                    <div className="flex flex-col items-center animate-in zoom-in duration-300">
+                        <div className="p-1 bg-emerald-100 rounded-full mb-1"><Check size={16} /></div>
+                        <span className="text-[10px] font-bold">Cargado</span>
+                    </div>
+                ) : readOnly ? (
+                    <div className="flex flex-col items-center">
+                        <div className="p-1 bg-slate-200 rounded-full mb-1">{icon}</div>
+                        <span className="text-[10px] font-bold">Visualizar</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className="text-orange-500 transition-all">
+                            {icon}
+                        </div>
+                        <div className="text-center"><span className="font-medium text-[10px] block text-slate-400 group-hover:text-blue-500">Arrastra y suelta aquí el archivo para cargar, o haz clic para seleccionar archivos</span></div>
+                    </>
+                )}
+            </button>
+            <div className="flex justify-end mt-2">
+                <button className="px-4 py-1.5 bg-slate-400 hover:bg-slate-500 text-white rounded-full text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5" disabled>
+                    <Upload size={12}/> INICIAR CARGA DE DATOS
+                </button>
+            </div>
+        </div>
+    );
+};
+
+/* ─────────────────────── PLANTILLA PROVEEDORES VIEW ─────────────────────── */
+const PlantillaProveedoresView = () => {
+    // Drawer Gestionar Categorias
+    const [isCatDrawerOpen, setIsCatDrawerOpen] = useState(false);
+    const [isAddingCategoria, setIsAddingCategoria] = useState(false);
+    const [newCategoriaName, setNewCategoriaName] = useState('');
+    const [newCategoriaProv, setNewCategoriaProv] = useState('');
+    const [editingCatId, setEditingCatId] = useState(null);
+    
+    // Lista de Categorías Globales
+    const [categoriasList, setCategoriasList] = useState([
+        { id: 1, nombre: 'Entrada', proveedor: 'Meypar' },
+        { id: 2, nombre: 'Salida', proveedor: 'TGW' },
+        { id: 3, nombre: 'Caja manual', proveedor: 'Local' },
+        { id: 4, nombre: 'Cajero automático', proveedor: 'Importado' },
+        { id: 5, nombre: 'Sistema de monitoreo', proveedor: 'Urbiotica' },
+        { id: 6, nombre: 'Sistema de operación', proveedor: 'Acti' }
+    ]);
+
+    // Drawer Crear Grupo (Equipo)
+    const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+    const [formGrupo, setFormGrupo] = useState(''); 
+    const [formCategoria, setFormCategoria] = useState('');
+    
+    // Drawer Ver Detalle
+    const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+    const [selectedDetail, setSelectedDetail] = useState(null);
+
+    // Modal Añadir Componente
+    const [isAddCompModalOpen, setIsAddCompModalOpen] = useState(false);
+    const [compForm, setCompForm] = useState({ nombre: '', costo: '', moneda: 'USD', showCosto: false });
+    
+    // Tabla Principal
+    const [equiposList, setEquiposList] = useState([]);
+
+    const handleSaveCategoria = () => {
+        if (!newCategoriaName || !newCategoriaProv) return;
+        if (editingCatId) {
+            setCategoriasList(categoriasList.map(c => c.id === editingCatId ? { ...c, nombre: newCategoriaName, proveedor: newCategoriaProv } : c));
+            setEditingCatId(null);
+        } else {
+            setCategoriasList([...categoriasList, { id: Date.now(), nombre: newCategoriaName, proveedor: newCategoriaProv }]);
+        }
+        setNewCategoriaName('');
+        setNewCategoriaProv('');
+        setIsAddingCategoria(false);
+    };
+
+    const handleEditCategoria = (cat) => {
+        setNewCategoriaName(cat.nombre);
+        setNewCategoriaProv(cat.proveedor);
+        setEditingCatId(cat.id);
+        setIsAddingCategoria(true);
+    };
+
+    const handleDeleteCategoria = (id) => {
+        setCategoriasList(categoriasList.filter(c => c.id !== id));
+    };
+
+    const getGeneratedCode = () => {
+        if (!formGrupo || !formCategoria) return '------0000';
+        const selectedCat = categoriasList.find(c => c.id.toString() === formGrupo);
+        if (!selectedCat) return '------0000';
+        
+        const provPrefix = selectedCat.proveedor.substring(0, 3).toUpperCase();
+        const catPrefix = selectedCat.nombre.substring(0, 3).toUpperCase();
+        const inputPrefix = formCategoria.substring(0, 3).toUpperCase() || '---';
+        
+        return `${provPrefix}-${catPrefix}-${inputPrefix}-0000`;
+    };
+
+    const handleSaveEquipo = () => {
+        if (!formGrupo || !formCategoria) return;
+        const selectedCat = categoriasList.find(c => c.id.toString() === formGrupo);
+        const newEquipo = {
+            id: Date.now(),
+            codigo: getGeneratedCode(),
+            grupo: selectedCat.nombre,
+            equipo: formCategoria,
+            proveedor: selectedCat.proveedor,
+            componentesCount: 0,
+            componentes: []
+        };
+        setEquiposList([...equiposList, newEquipo]);
+        setIsCreateDrawerOpen(false);
+        setFormGrupo('');
+        setFormCategoria('');
+    };
+
+    const handleOpenDetail = (equipo) => {
+        setSelectedDetail(equipo);
+        setIsDetailDrawerOpen(true);
+    };
+
+    const handleSaveComponente = () => {
+        if (!compForm.nombre) return;
+        
+        const newComponente = {
+            id: Date.now(),
+            nombre: compForm.nombre,
+            costo: compForm.showCosto ? parseFloat(compForm.costo || 0) : 0,
+            moneda: compForm.moneda
+        };
+
+        const updatedComponentes = [...(selectedDetail.componentes || []), newComponente];
+        
+        const updatedEquipo = {
+            ...selectedDetail,
+            componentes: updatedComponentes,
+            componentesCount: updatedComponentes.length
+        };
+
+        setSelectedDetail(updatedEquipo);
+        setEquiposList(equiposList.map(eq => eq.id === updatedEquipo.id ? updatedEquipo : eq));
+        setIsAddCompModalOpen(false);
+        setCompForm({ nombre: '', costo: '', moneda: 'USD', showCosto: false });
+    };
+
+    // Auto-calculo del total de componentes en el Drawer
+    const totalCostoComponentes = selectedDetail?.componentes?.reduce((sum, c) => sum + (c.costo || 0), 0) || 0;
+    const monedaPredeterminada = selectedDetail?.componentes?.[0]?.moneda || 'USD';
+
+    return (
+        <div className="space-y-6 fade-up pb-10 max-w-[1400px] mx-auto">
+            {/* Cabecera Principal */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-start gap-4">
+                    <div className="text-blue-500 mt-1"><ClipboardList size={28} strokeWidth={1.5}/></div>
+                    <div>
+                        <h2 className="text-[22px] font-medium text-slate-800 leading-tight">Plantilla de Proveedor</h2>
+                        <p className="text-[13px] text-slate-500 mt-1">Gestiona los proveedores disponibles para los diferentes parqueaderos</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => setIsCreateDrawerOpen(true)} className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[100px] shadow-sm">
+                        <Plus size={16} className="text-orange-500 mb-1" />
+                        Crear Grupo
+                    </button>
+                </div>
+            </div>
+
+            {/* Panel Principal */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 min-h-[500px]">
+                
+                {/* Filtros */}
+                <div className="flex justify-between items-end mb-6">
+                    <div className="flex gap-4">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">BUSCAR</label>
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar por nombre o código"
+                                    className="appearance-none pl-4 pr-10 py-2 border border-slate-200 rounded-full text-[13px] text-slate-600 outline-none focus:border-blue-400 bg-white min-w-[250px] placeholder:text-slate-400" 
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">CATEGORÍA</label>
+                            <div className="relative">
+                                <select className="appearance-none pl-4 pr-10 py-2 border border-slate-200 rounded-full text-[13px] text-slate-600 outline-none focus:border-blue-400 cursor-pointer bg-white min-w-[200px]">
+                                    <option value="" disabled selected>Selecciona una opción</option>
+                                    <option value="Meypar">Meypar</option>
+                                    <option value="TGW">TGW</option>
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex flex-col">
+                                    <ChevronUp size={10} className="-mb-1"/>
+                                    <ChevronDown size={10}/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={() => { setIsCatDrawerOpen(true); setIsAddingCategoria(false); setEditingCatId(null); setNewCategoriaName(''); setNewCategoriaProv(''); }}
+                        className="px-5 py-2.5 bg-white border border-blue-400 hover:bg-blue-50 text-blue-600 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[120px] shadow-sm"
+                    >
+                        <ClipboardList size={18} className="mb-1" />
+                        Gestionar Categoría
+                    </button>
+                </div>
+
+                {/* Tabla Principal Actualizada */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="border-b border-slate-100 bg-slate-50/50">
+                            <tr>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <div className="flex items-center gap-2"><Key size={14} className="opacity-50"/> CÓDIGO</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <div className="flex items-center gap-2"><User size={14} className="opacity-50"/> PROVEEDOR</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <div className="flex items-center gap-2"><Settings2 size={14} className="opacity-50"/> CATEGORÍA</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <div className="flex items-center gap-2"><Cpu size={14} className="opacity-50"/> NOMBRE DEL EQUIPO</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <div className="flex items-center gap-2"><Layers size={14} className="opacity-50"/> COMPONENTES</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">
+                                    <div className="flex items-center justify-end gap-2"><DollarSign size={14} className="opacity-50"/> COSTO TOTAL</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">
+                                    <div className="flex items-center justify-center gap-2"><Landmark size={14} className="opacity-50"/> MONEDA</div>
+                                </th>
+                                <th className="px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-32"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {equiposList.length > 0 ? (
+                                equiposList.map((eq, index) => {
+                                    const calcTotal = eq.componentes?.reduce((sum, c) => sum + (c.costo || 0), 0) || 0;
+                                    const calcMoneda = eq.componentes?.[0]?.moneda || 'USD';
+                                    return (
+                                        <tr key={eq.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-4 text-[13px] text-slate-600">{index + 1}</td>
+                                            <td className="px-4 py-4 text-[13px] font-bold text-slate-800">{eq.codigo}</td>
+                                            <td className="px-4 py-4 text-[13px] text-slate-600">{eq.proveedor}</td>
+                                            <td className="px-4 py-4 text-[13px] text-slate-600">{eq.grupo}</td>
+                                            <td className="px-4 py-4 text-[13px] font-medium text-slate-700">{eq.equipo}</td>
+                                            <td className="px-4 py-4 text-[13px] text-slate-600">{eq.componentesCount}</td>
+                                            <td className="px-4 py-4 text-[13px] font-bold text-emerald-600 text-right">
+                                                {calcTotal > 0 ? calcTotal.toFixed(2) : '-'}
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                {calcTotal > 0 ? (
+                                                    <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded text-[11px] font-bold">{calcMoneda}</span>
+                                                ) : '-'}
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <button 
+                                                    onClick={() => handleOpenDetail(eq)}
+                                                    className="px-4 py-1.5 bg-[#004A7C] hover:bg-[#00365a] text-white rounded-full text-[11px] font-medium transition-all shadow-sm flex items-center justify-center gap-1.5 mx-auto whitespace-nowrap"
+                                                >
+                                                    <Eye size={14}/> Ver detalle
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
+                                <tr>
+                                    <td colSpan="9" className="py-20 text-center">
+                                        <div className="flex flex-col items-center justify-center text-slate-400">
+                                            <ClipboardList size={32} className="mb-3 opacity-50" />
+                                            <p className="text-sm font-medium">No hay registros para mostrar</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {}
+            {/* DRAWER LATERAL: GESTIONAR CATEGORÍAS */}
+            {isCatDrawerOpen && (
+                <div className="fixed inset-0 z-[150] flex justify-end">
+                    <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setIsCatDrawerOpen(false)} />
+                    <div className="relative w-full max-w-[400px] h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-200">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-white shrink-0">
+                            <h3 className="text-[18px] font-medium text-slate-800">Categorías</h3>
+                            <button onClick={() => setIsCatDrawerOpen(false)} className="text-blue-300 hover:text-blue-500 transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-[#F8FAFC]">
+                            {categoriasList.map((cat) => (
+                                <div key={cat.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                                    <div>
+                                        <span className="text-[13px] text-slate-600 font-medium">{cat.nombre}</span>
+                                        <span className="text-[10px] text-slate-400 block mt-0.5">{cat.proveedor}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={() => handleEditCategoria(cat)} className="text-[#93C5FD] hover:text-blue-500 transition-colors"><Pencil size={16}/></button>
+                                        <button onClick={() => handleDeleteCategoria(cat.id)} className="text-[#FCA5A5] hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                            {isAddingCategoria && (
+                                <div className="bg-white p-3 rounded-lg border-2 border-[#0EA5E9] shadow-sm animate-in zoom-in-95 duration-200 mt-4 flex flex-col gap-3">
+                                    <div className="flex justify-between items-center">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nombre de la categoría"
+                                            className="w-full outline-none text-[13px] text-slate-700 bg-transparent placeholder:text-slate-300"
+                                            value={newCategoriaName}
+                                            onChange={(e) => setNewCategoriaName(e.target.value)}
+                                            autoFocus
+                                        />
+                                        <div className="flex items-center gap-3 shrink-0 ml-2">
+                                            <button onClick={handleSaveCategoria} className="text-[#F97316] hover:text-orange-600 transition-colors"><Check size={18} strokeWidth={2.5}/></button>
+                                            <button onClick={() => { setIsAddingCategoria(false); setEditingCatId(null); setNewCategoriaName(''); setNewCategoriaProv(''); }} className="text-[#FCA5A5] hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                        </div>
+                                    </div>
+                                    <div className="pt-2 border-t border-slate-100">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Proveedor</label>
+                                        <select 
+                                            value={newCategoriaProv}
+                                            onChange={(e) => setNewCategoriaProv(e.target.value)}
+                                            className="w-full appearance-none px-3 py-2 border border-slate-200 rounded text-[12px] text-slate-600 outline-none focus:border-[#0EA5E9] bg-slate-50 cursor-pointer"
+                                        >
+                                            <option value="" disabled>Seleccione un proveedor...</option>
+                                            <option value="Meypar">Meypar</option>
+                                            <option value="TGW">TGW</option>
+                                            <option value="Local">Local</option>
+                                            <option value="Importado">Importado</option>
+                                            <option value="Urbiotica">Urbiotica</option>
+                                            <option value="Acti">Acti</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end shrink-0">
+                            <button onClick={() => { setIsAddingCategoria(true); setEditingCatId(null); setNewCategoriaName(''); setNewCategoriaProv(''); }} className="flex flex-col items-center justify-center text-[#F97316] hover:text-orange-600 transition-colors px-4 py-2 rounded-lg hover:bg-orange-50">
+                                <Plus size={20} />
+                                <span className="text-[11px] font-medium mt-1">Agregar categoría</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DRAWER LATERAL: CREAR EQUIPO */}
+            {isCreateDrawerOpen && (
+                <div className="fixed inset-0 z-[150] flex justify-end">
+                    <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setIsCreateDrawerOpen(false)} />
+                    <div className="relative w-full max-w-[400px] h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-200">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-white shrink-0">
+                            <h3 className="text-[18px] font-medium text-slate-800">Crear equipo</h3>
+                            <button onClick={() => setIsCreateDrawerOpen(false)} className="text-blue-300 hover:text-blue-500 transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
+                            <div>
+                                <label className="text-[11px] font-bold text-blue-500 uppercase tracking-wider mb-2 block">* GRUPO</label>
+                                <div className="relative">
+                                    <select 
+                                        value={formGrupo}
+                                        onChange={(e) => setFormGrupo(e.target.value)}
+                                        className="w-full appearance-none px-4 py-3 border border-blue-300 rounded-lg text-[13px] text-slate-700 outline-none focus:border-blue-500 bg-white cursor-pointer"
+                                    >
+                                        <option value="" disabled>Seleccione un grupo</option>
+                                        {categoriasList.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none flex flex-col">
+                                        <ChevronUp size={12} className="-mb-1"/>
+                                        <ChevronDown size={12}/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[11px] font-bold text-blue-500 uppercase tracking-wider mb-2 block">* CATEGORIA - Ingrese el nombre de la categoria</label>
+                                <input 
+                                    type="text" 
+                                    value={formCategoria}
+                                    onChange={(e) => setFormCategoria(e.target.value)}
+                                    className="w-full px-4 py-3 border border-slate-300 rounded-lg text-[13px] text-slate-700 outline-none focus:border-blue-400 bg-white placeholder:text-slate-400" 
+                                />
+                            </div>
+
+                            <div className="pt-2 flex items-center gap-2">
+                                <span className="text-[12px] font-bold text-blue-600 uppercase tracking-wider">CÓDIGO:</span>
+                                <span className="text-[13px] text-slate-400 font-mono tracking-widest">{getGeneratedCode()}</span>
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-slate-100 bg-white flex justify-end shrink-0">
+                            <button 
+                                onClick={handleSaveEquipo}
+                                disabled={!formGrupo || !formCategoria}
+                                className="px-6 py-2.5 rounded-full border border-blue-400 text-blue-600 font-medium hover:bg-blue-50 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                            >
+                                Guardar <Save size={16}/>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DRAWER LATERAL: VER DETALLE */}
+            {isDetailDrawerOpen && selectedDetail && (
+                <div className="fixed inset-0 z-[150] flex justify-end">
+                    <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setIsDetailDrawerOpen(false)} />
+                    <div className="relative w-full max-w-[500px] h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-200">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-white shrink-0">
+                            <h3 className="text-[18px] font-medium text-slate-800">Detalle de Equipo</h3>
+                            <button onClick={() => setIsDetailDrawerOpen(false)} className="text-blue-300 hover:text-blue-500 transition-colors"><X size={20} /></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
+                            {/* Cabecera Info */}
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="flex items-center gap-2 text-[#00A1E0] mb-2">
+                                        <Layers size={18} />
+                                        <h4 className="font-bold text-[15px]">{selectedDetail.grupo}</h4>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Nombre del Equipo:</p>
+                                    <p className="text-[14px] font-medium text-slate-800 mb-3">{selectedDetail.equipo}</p>
+                                    
+                                    <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Código:</p>
+                                    <p className="text-[14px] font-medium text-slate-800 mb-3">{selectedDetail.codigo}</p>
+
+                                    <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Proveedor:</p>
+                                    <p className="text-[14px] font-medium text-slate-800">{selectedDetail.proveedor}</p>
+                                </div>
+                                <button className="text-red-400 hover:text-red-600 transition-colors p-2"><Trash2 size={18} /></button>
+                            </div>
+
+                            <hr className="border-slate-100" />
+
+                            {/* Costo Proveedor Autocalculado */}
+                            <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+                                <div className="absolute -right-4 -top-4 text-slate-100"><Landmark size={80}/></div>
+                                <div className="relative">
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Costo Proveedor Total</label>
+                                    <div className="flex items-end gap-2">
+                                        <span className="text-3xl font-black text-blue-600">{totalCostoComponentes > 0 ? totalCostoComponentes.toFixed(2) : '0.00'}</span>
+                                        <span className="text-lg font-bold text-slate-400 mb-1">{totalCostoComponentes > 0 ? monedaPredeterminada : 'USD'}</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5"><AlertCircle size={14}/> Calculado automáticamente según los componentes.</p>
+                                </div>
+                            </div>
+
+                            <hr className="border-slate-100" />
+
+                            {/* Componentes */}
+                            <div>
+                                <h5 className="text-[12px] font-bold text-[#00A1E0] uppercase tracking-wider mb-4">COMPONENTES DEL EQUIPO ({selectedDetail.componentesCount || 0})</h5>
+                                
+                                {selectedDetail.componentes && selectedDetail.componentes.length > 0 ? (
+                                    <div className="space-y-3 mb-6">
+                                        {selectedDetail.componentes.map(comp => (
+                                            <div key={comp.id} className="flex justify-between items-center p-3 border border-slate-200 rounded-lg bg-white shadow-sm animate-in zoom-in-95 duration-200">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-slate-50 border border-slate-100 rounded text-slate-400"><Cpu size={16}/></div>
+                                                    <span className="text-[13px] font-medium text-slate-700">{comp.nombre}</span>
+                                                </div>
+                                                <div className="text-[13px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                                                    {comp.costo ? `${comp.costo.toFixed(2)} ${comp.moneda}` : '0.00 USD'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-[13px] text-slate-500 mb-6 py-6 bg-slate-50 rounded-xl text-center border border-dashed border-slate-200 flex flex-col items-center">
+                                        <Cpu size={24} className="mb-2 text-slate-300"/>
+                                        No hay componentes registrados
+                                    </div>
+                                )}
+                                
+                                <div className="flex justify-between items-center">
+                                    <button 
+                                        onClick={() => setIsAddCompModalOpen(true)}
+                                        className="flex flex-col items-center justify-center text-slate-500 hover:text-[#00A1E0] transition-colors border border-slate-200 rounded-lg px-6 py-3 hover:bg-blue-50/50 shadow-sm bg-white hover:border-blue-300"
+                                    >
+                                        <Plus size={20} className="text-orange-400 mb-1" />
+                                        <span className="text-[11px] font-medium">Añadir componente</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end shrink-0">
+                            <button onClick={() => setIsDetailDrawerOpen(false)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-[13px] font-bold transition-colors shadow-sm">Cerrar detalle</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: AÑADIR COMPONENTE */}
+            {isAddCompModalOpen && (
+                <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsAddCompModalOpen(false)} />
+                    <div className="relative bg-white rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-[#F8FAFC]">
+                            <h3 className="text-[16px] font-bold text-slate-800">Añadir Componente</h3>
+                            <button onClick={() => setIsAddCompModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div>
+                                <input 
+                                    type="text" 
+                                    placeholder="* NOMBRE DEL COMPONENTE - Ingrese el nombre del componente"
+                                    value={compForm.nombre}
+                                    onChange={e => setCompForm({...compForm, nombre: e.target.value})}
+                                    className="w-full px-4 py-3.5 border border-slate-300 rounded-xl text-[13px] text-slate-700 outline-none focus:border-blue-500 bg-white shadow-sm"
+                                    autoFocus
+                                />
+                            </div>
+                            
+                            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm relative overflow-hidden">
+                                <div className="flex justify-between items-center mb-4 relative z-10">
+                                    <h4 className="text-[13px] font-bold text-slate-800">Costo del componente</h4>
+                                    {!compForm.showCosto && (
+                                        <button 
+                                            onClick={() => setCompForm({...compForm, showCosto: true})}
+                                            className="px-4 py-2 rounded-full border border-orange-400 text-orange-500 text-[11px] font-bold hover:bg-orange-50 flex items-center gap-1.5 transition-colors bg-white shadow-sm"
+                                        >
+                                            <Plus size={14}/> Añadir Costo del Componente
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {!compForm.showCosto ? (
+                                    <p className="text-[11px] text-slate-500 text-center py-5 bg-slate-50 rounded-lg border border-dashed border-slate-200 relative z-10">$ No hay costo. Haz clic en "Añadir Costo del Componente" para agregar uno.</p>
+                                ) : (
+                                    <div className="flex gap-3 animate-in fade-in zoom-in-95 duration-200 relative z-10">
+                                        <div className="relative w-1/3">
+                                            <select 
+                                                value={compForm.moneda}
+                                                onChange={e => setCompForm({...compForm, moneda: e.target.value})}
+                                                className="w-full appearance-none px-4 py-3 border border-slate-300 rounded-xl text-[13px] text-slate-700 outline-none focus:border-blue-500 bg-white cursor-pointer font-bold shadow-sm"
+                                            >
+                                                <option value="USD">USD ($)</option>
+                                                <option value="EUR">EUR (€)</option>
+                                            </select>
+                                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                                        </div>
+                                        <input 
+                                            type="number" 
+                                            placeholder="Ej: 1500.00"
+                                            value={compForm.costo}
+                                            onChange={e => setCompForm({...compForm, costo: e.target.value})}
+                                            className="w-2/3 px-4 py-3 border border-slate-300 rounded-xl text-[14px] font-bold text-slate-800 outline-none focus:border-blue-500 bg-white shadow-sm"
+                                        />
+                                        <button 
+                                            onClick={() => setCompForm({...compForm, showCosto: false, costo: ''})} 
+                                            className="p-3 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100"
+                                        >
+                                            <Trash2 size={20}/>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-slate-100 bg-[#F8FAFC] flex justify-end shrink-0">
+                            <button 
+                                onClick={handleSaveComponente}
+                                disabled={!compForm.nombre}
+                                className="px-6 py-2.5 bg-white border border-blue-400 text-blue-600 rounded-full text-[13px] font-bold hover:bg-blue-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                            >
+                                Guardar <Save size={16}/>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ─────────────────────── INVERSIONES VIEW ─────────────────────── */
+const InversionesView = () => {
+    const [inversiones, setInversiones] = useState([
+        { id: 1, nombre: 'Renovación Cámaras Plaza', moneda: 'USD', conversion: '1.00', desaduanizacion: '0.00', utilidad: '15', estado: 'Creado' },
+        { id: 2, nombre: 'Nuevos Cajeros Automáticos', moneda: 'EUR', conversion: '1.08', desaduanizacion: '450.00', utilidad: '20', estado: 'Creado' }
+    ]);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showDetailModal, setShowDetailModal] = useState(null);
+    const [form, setForm] = useState({ nombre: '', moneda: 'EUR', conversion: '', desaduanizacion: '', utilidad: '' });
+
+    const handleSave = () => {
+        if (!form.nombre) return;
+        const newInv = {
+            id: Date.now(),
+            ...form,
+            estado: 'Creado'
+        };
+        setInversiones([newInv, ...inversiones]);
+        setShowCreateModal(false);
+        setForm({ nombre: '', moneda: 'EUR', conversion: '', desaduanizacion: '', utilidad: '' });
+    };
+
+    return (
+        <div className="space-y-6 fade-up max-w-[1200px] mx-auto pb-10">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg text-[#001F3F] border border-slate-200 shadow-sm"><Briefcase size={24} strokeWidth={2.5}/></div>
+                    <div>
+                        <h2 className="text-[22px] font-bold text-[#001F3F] leading-tight">Inversiones de Proyectos</h2>
+                        <p className="text-[13px] text-slate-500 mt-1">Carga y gestiona las inversiones de tus proyectos con sus variables financieras.</p>
+                    </div>
+                </div>
+                <button onClick={() => setShowCreateModal(true)} className="px-5 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold rounded-xl text-[13px] shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <Plus size={18}/> Crear nueva inversión
+                </button>
+            </div>
+
+            {/* Tabla de Histórico */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                <div className="p-5 border-b border-slate-100 bg-[#F8FAFC]">
+                    <h3 className="text-[15px] font-bold text-slate-800">Histórico de Carga de Inversiones</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-white border-b border-slate-100">
+                            <tr>
+                                <th className="px-6 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">NOMBRE DE LA INVERSIÓN</th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">ESTADO</th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider text-center">DETALLE</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {inversiones.length > 0 ? (
+                                inversiones.map((inv) => (
+                                    <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 text-[14px] font-bold text-[#334155]">{inv.nombre}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[11px] font-bold border border-emerald-200">
+                                                {inv.estado}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <button 
+                                                onClick={() => setShowDetailModal(inv)} 
+                                                className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors mx-auto block"
+                                                title="Ver detalle"
+                                            >
+                                                <Eye size={18}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="3" className="py-16 text-center">
+                                        <Briefcase size={32} className="mx-auto mb-3 text-slate-300" />
+                                        <p className="text-[14px] text-slate-500 font-medium">Aún no has creado ninguna inversión.</p>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* MODAL: Crear Inversión */}
+            {showCreateModal && (
+                <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
+                    <div className="relative bg-white rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-[#F8FAFC]">
+                            <h3 className="text-[18px] font-bold text-[#1E293B]">Crear nueva inversión</h3>
+                            <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="p-6 space-y-5">
+                            <div>
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Nombre del proyecto / inversión</label>
+                                <input type="text" placeholder="Ej. Renovación de equipos" value={form.nombre} onChange={e=>setForm({...form, nombre: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Moneda</label>
+                                    <div className="relative">
+                                        <select value={form.moneda} onChange={e=>setForm({...form, moneda: e.target.value})} className="w-full appearance-none px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 cursor-pointer bg-white text-slate-700 font-medium">
+                                            <option value="EUR">Euros (EUR)</option>
+                                            <option value="USD">Dólar (USD)</option>
+                                            <option value="YEN">Yenes (JPY)</option>
+                                            <option value="GBP">Libras (GBP)</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16}/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Conversión a Dólar</label>
+                                    <input type="number" step="0.01" placeholder="Ej: 1.2" value={form.conversion} onChange={e=>setForm({...form, conversion: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400" />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Desaduanización</label>
+                                    <input type="number" step="0.01" placeholder="Ej: 150.00" value={form.desaduanizacion} onChange={e=>setForm({...form, desaduanizacion: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400" />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Utilidad (%)</label>
+                                    <input type="number" step="0.1" placeholder="Ej: 20" value={form.utilidad} onChange={e=>setForm({...form, utilidad: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-slate-100 bg-[#F8FAFC] flex justify-end gap-3 shrink-0">
+                            <button onClick={() => setShowCreateModal(false)} className="px-6 py-2.5 font-medium text-slate-600 hover:text-slate-800 transition-colors text-[13px]">Cerrar</button>
+                            <button onClick={handleSave} disabled={!form.nombre} className="px-6 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold shadow-sm active:scale-95 transition-all text-[13px] disabled:opacity-50 disabled:cursor-not-allowed">Guardar inversión</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: Detalle Inversión */}
+            {showDetailModal && (
+                <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowDetailModal(null)} />
+                    <div className="relative bg-white rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Briefcase size={20}/></div>
+                                <h3 className="text-[18px] font-bold text-[#1E293B]">Detalle de Inversión</h3>
+                            </div>
+                            <button onClick={() => setShowDetailModal(null)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nombre del Proyecto</p>
+                                <p className="text-[16px] font-bold text-[#1E293B]">{showDetailModal.nombre}</p>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-3 border border-slate-200 rounded-xl">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Moneda Origen</p>
+                                    <p className="text-[14px] font-bold text-slate-700">{showDetailModal.moneda}</p>
+                                </div>
+                                <div className="p-3 border border-slate-200 rounded-xl">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Conversión ($)</p>
+                                    <p className="text-[14px] font-bold text-slate-700">{showDetailModal.conversion || 'N/A'}</p>
+                                </div>
+                                <div className="p-3 border border-slate-200 rounded-xl">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Desaduanización</p>
+                                    <p className="text-[14px] font-bold text-slate-700">{showDetailModal.desaduanizacion ? `$${showDetailModal.desaduanizacion}` : 'N/A'}</p>
+                                </div>
+                                <div className="p-3 border border-slate-200 rounded-xl">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Utilidad</p>
+                                    <p className="text-[14px] font-bold text-emerald-600">{showDetailModal.utilidad ? `${showDetailModal.utilidad}%` : 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-[#F8FAFC] flex justify-end shrink-0">
+                            <button onClick={() => setShowDetailModal(null)} className="px-6 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold shadow-sm transition-all text-[13px]">Cerrar detalle</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ─────────────────────── LIQUIDACIÓN BANCOS CONTABILIDAD VIEW ─────────────────────── */
+const LiquidacionBancosContabilidadView = () => {
+    const [activeTab, setActiveTab] = useState('carga');
+    const [filtroFecha, setFiltroFecha] = useState('');
+    const [filtroCentroCosto, setFiltroCentroCosto] = useState('');
+    const [hasSearched, setHasSearched] = useState(false);
+
+    return (
+        <div className="space-y-6 fade-up pb-10 max-w-[1200px] mx-auto">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg text-[#001F3F] border border-slate-200 shadow-sm"><Landmark size={24} strokeWidth={2.5}/></div>
+                    <div>
+                        <h2 className="text-[22px] font-bold text-[#001F3F] leading-tight">Liquidación Bancos Contabilidad</h2>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex justify-center mb-8">
+                <div className="inline-flex items-center p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                    <button onClick={() => setActiveTab('carga')} className={`px-8 py-2.5 text-[14px] font-medium rounded-xl transition-all ${activeTab === 'carga' ? 'bg-blue-50/50 text-blue-600 border border-blue-200/60 shadow-sm' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50 border border-transparent'}`}>
+                        Carga de Archivos
+                    </button>
+                    <button onClick={() => setActiveTab('nueva')} className={`px-8 py-2.5 text-[14px] font-medium rounded-xl transition-all ${activeTab === 'nueva' ? 'bg-blue-50/50 text-blue-600 border border-blue-200/60 shadow-sm' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50 border border-transparent'}`}>
+                        Nueva Interfaz
+                    </button>
+                </div>
+            </div>
+
+            {/* TAB 1: CARGA DE ARCHIVOS */}
+            {activeTab === 'carga' && (
+                <div className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="space-y-6 max-w-4xl mx-auto">
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center gap-8 shadow-sm">
+                            <div className="w-1/3 border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors group">
+                                <FileText size={32} className="text-orange-500 mb-3 group-hover:scale-110 transition-transform" />
+                                <p className="text-[11px] text-slate-500 font-medium">Arrastra y suelta aquí el archivo para cargar, o haz clic para seleccionar archivos</p>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-black text-[#00A1E0] mb-2 uppercase tracking-wide">Banco Pichincha</h3>
+                                <p className="text-[12px] text-slate-500 mb-4">Por favor seleccione un archivo para cargar BANCO PICHINCHA. Recuerde que el archivo debe ser uno solo, con la extensión .xls y la estructura correcta.</p>
+                                <button className="px-6 py-2.5 bg-slate-200 text-slate-500 font-bold rounded-full text-[11px] flex items-center gap-2 cursor-not-allowed">
+                                    <Upload size={14}/> INICIAR CARGA DE DATOS
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center gap-8 shadow-sm">
+                            <div className="w-1/3 border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors group">
+                                <FileText size={32} className="text-orange-500 mb-3 group-hover:scale-110 transition-transform" />
+                                <p className="text-[11px] text-slate-500 font-medium">Arrastra y suelta aquí el archivo para cargar, o haz clic para seleccionar archivos</p>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-black text-[#00A1E0] mb-2 uppercase tracking-wide">Banco Pichincha Ahorros</h3>
+                                <p className="text-[12px] text-slate-500 mb-4">Por favor seleccione un archivo para cargar BANCO PICHINCHA AHORROS. Recuerde que el archivo debe ser uno solo, con la extensión .xls y la estructura correcta.</p>
+                                <button className="px-6 py-2.5 bg-slate-200 text-slate-500 font-bold rounded-full text-[11px] flex items-center gap-2 cursor-not-allowed">
+                                    <Upload size={14}/> INICIAR CARGA DE DATOS
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center gap-8 shadow-sm">
+                            <div className="w-1/3 border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors group">
+                                <FileText size={32} className="text-orange-500 mb-3 group-hover:scale-110 transition-transform" />
+                                <p className="text-[11px] text-slate-500 font-medium">Arrastra y suelta aquí el archivo para cargar, o haz clic para seleccionar archivos</p>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-black text-[#00A1E0] mb-2 uppercase tracking-wide">Banco Internacional</h3>
+                                <p className="text-[12px] text-slate-500 mb-4">Por favor seleccione un archivo para cargar BANCO INTERNACIONAL. Recuerde que el archivo debe ser uno solo, con la extensión .xls y la estructura correcta.</p>
+                                <button className="px-6 py-2.5 bg-slate-200 text-slate-500 font-bold rounded-full text-[11px] flex items-center gap-2 cursor-not-allowed">
+                                    <Upload size={14}/> INICIAR CARGA DE DATOS
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center gap-8 shadow-sm">
+                            <div className="w-1/3 border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors group">
+                                <FileText size={32} className="text-orange-500 mb-3 group-hover:scale-110 transition-transform" />
+                                <p className="text-[11px] text-slate-500 font-medium">Arrastra y suelta aquí el archivo para cargar, o haz clic para seleccionar archivos</p>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-black text-[#00A1E0] mb-2 uppercase tracking-wide">Banco Internacional PP</h3>
+                                <p className="text-[12px] text-slate-500 mb-4">Por favor seleccione un archivo para cargar BANCO INTERNACIONAL PP. Recuerde que el archivo debe ser uno solo, con la extensión .xls y la estructura correcta.</p>
+                                <button className="px-6 py-2.5 bg-slate-200 text-slate-500 font-bold rounded-full text-[11px] flex items-center gap-2 cursor-not-allowed">
+                                    <Upload size={14}/> INICIAR CARGA DE DATOS
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-8">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-medium text-slate-800">Historial de Cargas de Estados de Bancos</h3>
+                            <p className="text-xs text-slate-500 mt-1">Este historial muestra <strong className="text-slate-700">20 registros más recientes</strong>, de los últimos días.</p>
+                        </div>
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-[#F8FAFC] border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2"><FileText size={14} className="opacity-50"/> NOMBRE DEL ARCHIVO</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><Calendar size={14} className="opacity-50"/> FECHA</div></th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><List size={14} className="opacity-50"/> TOTAL</div></th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><Copy size={14} className="opacity-50"/> DUPLICADOS</div></th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><Upload size={14} className="opacity-50"/> CARGADOS</div></th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><CheckCircle2 size={14} className="opacity-50"/> ESTADO</div></th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center"><div className="flex items-center justify-center gap-2"><Download size={14} className="opacity-50"/> DESCARGAR</div></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {[1,2,3].map((item) => (
+                                            <tr key={item} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-6 py-5 text-[12px] font-medium text-slate-700">MOVIMIENTOS-PREFACTURA (9) prueba 2.xls</td>
+                                                <td className="px-6 py-5 text-[12px] text-slate-500">5/8/2026 12:26:37 p. m.</td>
+                                                <td className="px-6 py-5 text-[13px] font-bold text-slate-800">0</td>
+                                                <td className="px-6 py-5 text-[13px] font-bold text-slate-800">0</td>
+                                                <td className="px-6 py-5 text-[13px] font-bold text-slate-800">0</td>
+                                                <td className="px-6 py-5">
+                                                    <span className="px-3 py-1 bg-slate-500 text-white rounded-full text-[10px] font-bold">completo sin valores</span>
+                                                </td>
+                                                <td className="px-6 py-5 text-center flex justify-center">
+                                                    <button className="p-1.5 border border-blue-200 text-blue-400 rounded hover:bg-blue-50 transition-colors">
+                                                        <Download size={14}/>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB 2: NUEVA INTERFAZ (Tabla de resultados con filtros) */}
+            {activeTab === 'nueva' && (
+                <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">
+                                    FECHA REGISTRO <span className="text-red-500">*</span>
+                                </label>
+                                <input 
+                                    type="date" 
+                                    value={filtroFecha}
+                                    onChange={(e) => setFiltroFecha(e.target.value)}
+                                    className="px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white min-w-[200px]" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">CENTRO DE COSTO</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Ej: 02306327"
+                                    value={filtroCentroCosto}
+                                    onChange={(e) => setFiltroCentroCosto(e.target.value)}
+                                    className="px-4 py-2.5 border border-slate-300 rounded-xl text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-300 min-w-[200px]" 
+                                />
+                            </div>
+                            <button 
+                                onClick={() => setHasSearched(true)}
+                                disabled={!filtroFecha}
+                                className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold rounded-xl text-[13px] shadow-sm transition-all flex items-center gap-2"
+                            >
+                                <Search size={16} /> Buscar
+                            </button>
+                        </div>
+                    </div>
+
+                    {hasSearched ? (
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                                <h3 className="text-[14px] font-bold text-slate-700">Resultados de Liquidación</h3>
+                                <span className="text-[11px] font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200">1 registro encontrado</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-[#F8FAFC] border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">FECHA REGISTRO</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">PARQUEADERO</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">C. COSTO</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">T. DEPÓSITO</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">T. TRANSFERENCIA</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">BANCO</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">COMPROBANTE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        <tr className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 text-[13px] text-slate-600">2026-09-15</td>
+                                            <td className="px-6 py-4 text-[13px] font-bold text-slate-800">PLAZA VILLAFLORA</td>
+                                            <td className="px-6 py-4 text-[13px] text-slate-500 font-mono">02306327</td>
+                                            <td className="px-6 py-4 text-[13px] font-bold text-emerald-600 text-right">$58.50</td>
+                                            <td className="px-6 py-4 text-[13px] font-bold text-emerald-600 text-right">$3.00</td>
+                                            <td className="px-6 py-4 text-[12px] font-medium text-slate-600">BANCO PICHINCHA C.A.</td>
+                                            <td className="px-6 py-4 text-[13px] text-slate-600 font-mono">25979616</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-16 text-center flex flex-col items-center justify-center">
+                            <Search size={40} className="text-slate-300 mb-4" />
+                            <h3 className="text-lg font-medium text-slate-600 mb-1">Realiza una búsqueda</h3>
+                            <p className="text-sm text-slate-400">Selecciona la fecha y haz clic en "Buscar" para ver los resultados de liquidación.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ─────────────────────── PROCESAMIENTO NÓMINA VIEW ─────────────────────── */
+const ProcesamientoNominaView = () => {
+    
+    const items = [
+        { id: 1, title: 'Procesar movilizaciones', hasDistributed: true },
+        { id: 2, title: 'Procesar E-Rol', hasDistributed: false },
+        { id: 3, title: 'Procesar bonos', hasDistributed: true },
+        { id: 4, title: 'Procesar préstamos hipotecarios', hasDistributed: false },
+        { id: 5, title: 'Procesar préstamos quirografarios', hasDistributed: false },
+        { id: 6, title: 'Procesar descuento celular', hasDistributed: false },
+        { id: 7, title: 'Procesar alimentación', hasDistributed: true },
+        { id: 8, title: 'Procesar fondos de reserva', hasDistributed: false },
+        { id: 9, title: 'Procesar subsidio enfermedad', hasDistributed: false },
+        { id: 10, title: 'Procesar subsidio maternidad', hasDistributed: false },
+        { id: 11, title: 'Procesar multas por memos', hasDistributed: false },
+        { id: 12, title: 'Procesar faltantes e incidentes de recaudación', hasDistributed: false },
+        { id: 13, title: 'Procesar Humana', hasDistributed: false },
+        { id: 14, title: 'Procesar Registro de Horas', hasDistributed: true }
+    ];
+
+    const solicitudes = [
+        { id: 1, fecha: '6/9/2026, 7:36:26 p. m.', submodulo: 'Procesar faltantes e incidentes a Nominaz', estado: 'completo', prog: {t:0, env:0, inc:0, ex:0, err:0} },
+        { id: 2, fecha: '6/9/2026, 7:31:00 p. m.', submodulo: 'Procesar subsidio maternidad a Nominaz', estado: 'completo', prog: {t:0, env:0, inc:0, ex:0, err:0} },
+        { id: 3, fecha: '4/9/2026, 5:07:51 p. m.', submodulo: 'Procesar multas por memos a Nominaz', estado: 'completo', prog: {t:2, env:2, inc:0, ex:2, err:0} },
+        { id: 4, fecha: '4/9/2026, 5:05:11 p. m.', submodulo: 'Procesar faltantes e incidentes a Nominaz', estado: 'completo', prog: {t:0, env:0, inc:0, ex:0, err:0} },
+        { id: 5, fecha: '4/9/2026, 5:01:53 p. m.', submodulo: 'Procesar subsidio enfermedad a Nominaz', estado: 'completo', prog: {t:1, env:1, inc:0, ex:1, err:0} }
+    ];
+
+    return (
+        <div className="space-y-6 fade-up pb-10 max-w-[1400px] mx-auto">
+            {/* Header */}
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Procesamiento hacia Nominaz</h2>
+                <p className="text-[13px] text-slate-500 mt-2 max-w-4xl">Este módulo le permite enviar solicitudes de procesamiento de registros del sistema SITEC-DSP al sistema de nómina Nominaz. El procesamiento de los registros se realiza de manera asíncrona, por lo que puede tardar algunos minutos en completarse.</p>
+            </div>
+
+            {/* Info Banner */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-5 flex gap-3 shadow-sm">
+                <AlertCircle size={20} className="text-blue-500 shrink-0" />
+                <div>
+                    <h4 className="text-[14px] font-bold text-[#001F3F] mb-1">Información del periodo a ser procesado en las solicitudes</h4>
+                    <p className="text-[13px] text-slate-600">
+                        Los rubros de RRHH a procesar de manera <span className="font-bold">General</span> y <span className="font-bold">Distribuido</span> correspondientes al periodo <span className="font-bold">2026-09</span>
+                    </p>
+                </div>
+            </div>
+
+            {/* List of Items */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm divide-y divide-slate-100">
+                {items.map((item) => (
+                    <div key={item.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center bg-white text-slate-400">
+                                <Settings2 size={14}/>
+                            </div>
+                            <h4 className="text-[15px] text-[#00A1E0] font-medium">{item.title}</h4>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                            <button className="w-14 h-14 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-500 flex items-center justify-center hover:bg-emerald-100 transition-colors shadow-sm" title="Procesar General">
+                                <Rocket size={24}/>
+                            </button>
+                            {item.hasDistributed && (
+                                <button className="w-14 h-14 rounded-full bg-[#004A7C] text-white flex items-center justify-center hover:bg-[#00365a] transition-colors shadow-sm" title="Procesar Distribuido">
+                                    <Rocket size={24}/>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Bottom Global Action Buttons */}
+            <div className="flex justify-end gap-3 pt-2">
+                <button className="px-6 py-3 rounded-full bg-[#004A7C] text-white font-medium text-[13px] flex items-center gap-2 hover:bg-[#00365a] transition-colors shadow-sm">
+                    <Rocket size={16}/> Procesar/Reprocesar General
+                </button>
+                <button className="px-6 py-3 rounded-full bg-[#004A7C] text-white font-medium text-[13px] flex items-center gap-2 hover:bg-[#00365a] transition-colors shadow-sm">
+                    <ListChecks size={16}/> Procesar Distribuido General
+                </button>
+            </div>
+
+            {/* Solicitudes Recientes Section */}
+            <div className="pt-8">
+                <div className="mb-4">
+                    <h3 className="text-xl font-bold text-slate-800">Solicitudes recientes</h3>
+                    <p className="text-[13px] text-slate-500">Se muestran las <span className="font-bold text-slate-700">30 solicitudes más recientes</span>, en tiempo real desde Firestore.</p>
+                </div>
+                
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-[#F8FAFC] border-b border-slate-100">
+                                <tr>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2"><Calendar size={14} className="opacity-50"/> SOLICITUD</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><Layers size={14} className="opacity-50"/> SUBMÓDULO</div></th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><CheckCircle2 size={14} className="opacity-50"/> ESTADO</div></th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider"><div className="flex items-center gap-2"><List size={14} className="opacity-50"/> PROGRESO</div></th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-16"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {solicitudes.map((sol) => (
+                                    <tr key={sol.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-5 text-[12px] text-slate-600">{sol.fecha}</td>
+                                        <td className="px-6 py-5 text-[12px] font-medium text-slate-700">{sol.submodulo}</td>
+                                        <td className="px-6 py-5">
+                                            <span className="px-3 py-1 bg-emerald-600 text-white rounded-full text-[10px] font-bold">{sol.estado}</span>
+                                        </td>
+                                        <td className="px-6 py-5 text-[11px] text-slate-600">
+                                            <span className="font-bold">Total:</span> {sol.prog.t} | <span className="font-bold">Enviados:</span> {sol.prog.env} | <span className="font-bold">Incompletos:</span> {sol.prog.inc} | <span className="font-bold">Éxitos:</span> {sol.prog.ex} | <span className="font-bold">Errores:</span> {sol.prog.err}
+                                        </td>
+                                        <td className="px-6 py-5 text-center">
+                                            <button className="p-1.5 border border-blue-200 text-blue-400 rounded hover:bg-blue-50 transition-colors">
+                                                <Eye size={14}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* ─────────────────────── RECAUDACIÓN VIEW ─────────────────────── */
+const CategoryButton = ({ label, id, isDone, active, onClick }) => (
+    <button 
+        onClick={() => onClick(id)}
+        className={`w-full h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all 
+            ${active ? 'border-blue-400 bg-blue-50 text-blue-600' : 
+              isDone ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 
+              'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+    >
+        {isDone ? <CheckCircle2 size={24} className="text-emerald-500"/> : <ImageIcon size={24} className={active ? "text-blue-500" : "text-red-400"} />}
+        <span className="text-[12px] font-bold">{isDone ? 'Cargado' : label}</span>
+        {!isDone && <span className="text-[10px] text-slate-400">Clic para cargar</span>}
+    </button>
+);
+
+const DetalleRecaudacionModal = ({ recaudacion, onClose }) => {
+    const docNames = {
+        planillas_pdf: 'Planillas (PDF)',
+        planillas_xlsx: 'Planillas (Excel)',
+        depositos_hora: 'Depósitos (Hora Fracción)',
+        depositos_abonados: 'Depósitos (Abonados)',
+        datafast: 'Datafast y Otros'
+    };
+    const uploadedKeys = Object.keys(recaudacion.uploads || {}).filter(k => recaudacion.uploads[k] === 'done');
+
+    return (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-lg w-full max-w-[750px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50">
+                    <h3 className="text-[15px] font-bold text-slate-800">Detalle de Recaudación</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
+                </div>
+                
+                <div className="flex flex-col md:flex-row p-6 overflow-y-auto custom-scrollbar gap-8">
+                    <div className="w-full md:w-1/3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 mb-2 text-[#001F3F]">
+                            <Wallet size={20}/>
+                            <div>
+                                <h4 className="text-[13px] font-bold">Detalle de carga</h4>
+                                <p className="text-[10px] text-slate-500">Información registrada el {recaudacion.fecha}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4 mt-4">
+                            {uploadedKeys.length > 0 ? uploadedKeys.map(k => (
+                                <div key={k} className="flex flex-col gap-1.5">
+                                    <div className="border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 shadow-sm animate-in zoom-in duration-300">
+                                        <FileText size={24} className="text-blue-500 mb-2" />
+                                        <p className="text-[11px] font-bold text-[#001F3F] leading-tight">{docNames[k]}</p>
+                                        <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-1"><Check size={12}/> Cargado</p>
+                                    </div>
+                                    <button className="flex items-center justify-center gap-1.5 text-orange-500 hover:text-orange-600 text-[10px] font-bold transition-colors">
+                                        <Eye size={12}/> Ver {docNames[k]}
+                                    </button>
+                                </div>
+                            )) : (
+                                <div className="border border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-center h-32 bg-slate-50">
+                                    <p className="text-[11px] text-slate-500">Sin documentos de respaldo</p>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center mt-4">Documentos subidos por el usuario</p>
+                    </div>
+
+                    <div className="w-full md:w-2/3 space-y-6">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h4 className="font-bold text-slate-800 text-[15px]">Registro de recaudación</h4>
+                            <span className={`px-3 py-1 text-white rounded-full text-[10px] font-bold ${recaudacion.estado === 'Cargado Fuera de Tiempo' ? 'bg-amber-500' : 'bg-slate-600'}`}>
+                                {recaudacion.estado}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 text-[12px]">
+                            <div className="flex bg-slate-50 p-2 rounded">
+                                <span className="font-bold text-[#001F3F] w-1/3">Usuario:</span>
+                                <span className="text-slate-600">{recaudacion.usuario}</span>
+                            </div>
+                            <div className="flex p-2 rounded">
+                                <span className="font-bold text-[#001F3F] w-1/3">Parqueadero:</span>
+                                <span className="text-slate-600">{recaudacion.parqueadero}</span>
+                            </div>
+                            <div className="flex bg-slate-50 p-2 rounded">
+                                <span className="font-bold text-[#001F3F] w-1/3">Centro de Costo:</span>
+                                <span className="text-slate-600 font-mono">{recaudacion.centroCosto || 'S/N'}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h5 className="text-[11px] font-bold text-[#001F3F] flex items-center gap-2 mb-2">
+                                <ChevronRight size={14} className="text-slate-400"/> INFORMACIÓN GENERAL
+                            </h5>
+                            <div className="space-y-1.5 text-[12px] pl-4">
+                                <div className="flex bg-slate-50 p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Fecha de registro:</span>
+                                    <span className="text-slate-600">{recaudacion.fecha}</span>
+                                </div>
+                                <div className="flex p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Efectivo:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoEfectivo || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Tarjeta:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoTarjeta || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Transferencia:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoTransferencia || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Crédito:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoCredito || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-blue-50/50 p-2 rounded border border-blue-100 mt-1">
+                                    <span className="font-bold text-blue-800 w-1/3">Total:</span>
+                                    <span className="text-blue-800 font-black text-[13px]">${parseFloat(recaudacion.monto || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 rounded flex-col gap-1 mt-2">
+                                    <span className="font-bold text-[#001F3F]">Observaciones:</span>
+                                    <span className="text-slate-600 leading-relaxed">{recaudacion.observaciones || 'Sin observaciones adicionales'}</span>
+                                </div>
+                                {recaudacion.observacionesDeposito && (
+                                    <div className="flex bg-blue-50/50 p-2 rounded flex-col gap-1 border border-blue-100 mt-2">
+                                        <span className="font-bold text-blue-700 flex items-center gap-1.5"><Banknote size={12}/> Observación de Depósito:</span>
+                                        <span className="text-slate-600 leading-relaxed">{recaudacion.observacionesDeposito}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="p-4 bg-white border-t border-slate-100 flex justify-between items-center shrink-0">
+                    <button className="p-2 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                        <Trash2 size={18} />
+                    </button>
+                    <button onClick={onClose} className="px-6 py-2 border border-slate-300 text-slate-600 rounded-full text-[13px] font-medium hover:bg-slate-50 transition-colors shadow-sm">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const RecaudacionView = ({ recaudaciones, setRecaudaciones }) => {
+    const [showModal, setShowModal] = useState(false);
+    const [detalleModal, setDetalleModal] = useState(null);
+    const [form, setForm] = useState({ parqueadero: '', usuario: '', fecha: '', observaciones: '', observacionesDeposito: '' });
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+    const [concuerdaMonto, setConcuerdaMonto] = useState('si');
+    const [uploads, setUploads] = useState({ planillas_pdf: null, planillas_xlsx: null, depositos_hora: null, depositos_abonados: null, datafast: null });
+    const [activeUploadCategory, setActiveUploadCategory] = useState(null);
+
+    const [filtroFecha, setFiltroFecha] = useState('');
+    const [filtroEstado, setFiltroEstado] = useState('Todos');
+    const [filtroParqueadero, setFiltroParqueadero] = useState('');
+
+    const handleUpload = (key) => {
+        setUploads(prev => ({ ...prev, [key]: 'loading' }));
+        setTimeout(() => setUploads(prev => ({ ...prev, [key]: 'done' })), 1000);
+    };
+
+    const getLocalDateStr = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const todayObj = new Date();
+    const maxDateStr = getLocalDateStr(todayObj);
+    const minDateObj = new Date(todayObj);
+    minDateObj.setDate(minDateObj.getDate() - 3);
+    const minDateStr = getLocalDateStr(minDateObj);
+
+    const handleSave = () => {
+        if (!form.parqueadero || !form.usuario || !form.fecha) return;
+        const uploadedCount = Object.keys(uploads).filter(k => uploads[k] === 'done').length;
+        const efe = (Math.random() * 200).toFixed(2);
+        const tar = (Math.random() * 100).toFixed(2);
+        const trans = (Math.random() * 50).toFixed(2);
+        const cred = (Math.random() * 50).toFixed(2);
+        const total = (parseFloat(efe) + parseFloat(tar) + parseFloat(trans) + parseFloat(cred)).toFixed(2);
+        const cCosto = '022' + Math.floor(1000 + Math.random() * 9000).toString();
+        const obsDepositoFinal = concuerdaMonto === 'no' ? form.observacionesDeposito : '';
+        const estadoFinal = form.fecha === maxDateStr ? 'Cargado Fuera de Tiempo' : 'Cargado';
+
+        const newRecaudacion = {
+            id: 'REC-' + Math.floor(Math.random() * 1000000),
+            centroCosto: cCosto,
+            ...form,
+            observacionesDeposito: obsDepositoFinal,
+            archivos: uploadedCount,
+            uploads: { ...uploads },
+            estado: estadoFinal,
+            montoEfectivo: efe,
+            montoTarjeta: tar,
+            montoTransferencia: trans,
+            montoCredito: cred,
+            monto: total
+        };
+        setRecaudaciones(prev => [newRecaudacion, ...prev]);
+        setShowModal(false);
+        setForm({ parqueadero: '', usuario: '', fecha: '', observaciones: '', observacionesDeposito: '' });
+        setUploads({ planillas_pdf: null, planillas_xlsx: null, depositos_hora: null, depositos_abonados: null, datafast: null });
+        setActiveUploadCategory(null);
+        setConcuerdaMonto('si');
+    };
+
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        setSortConfig({ key, direction });
+    };
+
+    const isPlanillasDone = uploads.planillas_pdf === 'done' || uploads.planillas_xlsx === 'done';
+    const isDepositosDone = uploads.depositos_hora === 'done' || uploads.depositos_abonados === 'done';
+    const isDatafastDone = uploads.datafast === 'done';
+
+    const filteredRecaudaciones = recaudaciones.filter(rec => {
+        const matchFecha = !filtroFecha || rec.fecha === filtroFecha;
+        const matchEstado = filtroEstado === 'Todos' || rec.estado === filtroEstado;
+        const matchParqueadero = !filtroParqueadero || rec.parqueadero.toLowerCase().includes(filtroParqueadero.toLowerCase());
+        return matchFecha && matchEstado && matchParqueadero;
+    });
+
+    const sortedRecaudaciones = [...filteredRecaudaciones].sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const totalMonto = filteredRecaudaciones.reduce((sum, rec) => sum + parseFloat(rec.monto || 0), 0);
+    const summaryDateText = filtroFecha ? filtroFecha : 'Todas las fechas';
+
+    return (
+        <div className="space-y-6 fade-up pb-10 max-w-[1200px] mx-auto">
+            {detalleModal && <DetalleRecaudacionModal recaudacion={detalleModal} onClose={() => setDetalleModal(null)} />}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-start gap-4">
+                    <div className="text-blue-500 mt-1"><Wallet size={28} strokeWidth={1.5}/></div>
+                    <div>
+                        <h2 className="text-[22px] font-medium text-slate-800 leading-tight">Recaudación</h2>
+                        <p className="text-[13px] text-slate-500 mt-1">Desde esta sección podrás gestionar las cargas de recaudación por parqueadero</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[100px] shadow-sm">
+                        <Plus size={16} className="text-orange-500 mb-1" /> recaudación
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 min-h-[500px] flex flex-col">
+                <div className="flex justify-between items-end mb-6">
+                    <div className="flex gap-3 flex-wrap">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">FECHA</label>
+                            <div className="relative">
+                                <input type="date" value={filtroFecha} onChange={e=>setFiltroFecha(e.target.value)} className="appearance-none pl-3 pr-3 py-1.5 border border-slate-200 rounded-full text-[12px] text-slate-600 outline-none focus:border-blue-400 cursor-pointer bg-white min-w-[130px]" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">ESTADO</label>
+                            <div className="relative">
+                                <select value={filtroEstado} onChange={e=>setFiltroEstado(e.target.value)} className="appearance-none pl-4 pr-8 py-1.5 border border-slate-200 rounded-full text-[12px] text-slate-600 outline-none focus:border-blue-400 cursor-pointer bg-white min-w-[110px]">
+                                    <option value="Todos">Todos</option>
+                                    <option value="Cargado">Cargado</option>
+                                    <option value="Cargado Fuera de Tiempo">Cargado Fuera de T.</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none" size={14}/>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">PARQUEADERO</label>
+                            <div className="relative">
+                                <input type="text" list="parqueaderos-list" placeholder="Buscar..." value={filtroParqueadero} onChange={e=>setFiltroParqueadero(e.target.value)} className="appearance-none pl-4 pr-8 py-1.5 border border-slate-200 rounded-full text-[12px] text-slate-600 outline-none focus:border-blue-400 bg-white min-w-[180px] placeholder:text-slate-300" />
+                                <datalist id="parqueaderos-list">
+                                    {PARKING_LOTS.map(p => <option key={p} value={p} />)}
+                                </datalist>
+                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                        <p className="text-[11px] text-slate-500 mb-1">Total | {summaryDateText}</p>
+                        <p className="text-2xl font-bold text-slate-800 leading-none mb-2">$ {totalMonto.toFixed(2).replace('.', ',')}</p>
+                        <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 text-[11px] rounded font-medium">{filteredRecaudaciones.length} recaudaciones</span>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto flex-1 flex flex-col">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="border-b border-slate-100">
+                            <tr>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><div className="flex items-center gap-1.5"><Calendar size={14} className="opacity-50"/> FECHA</div></th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><div className="flex items-center gap-1.5"><User size={14} className="opacity-50"/> USUARIO</div></th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-50 transition-colors rounded-lg group" onClick={() => handleSort('parqueadero')}>
+                                    <div className="flex items-center gap-1.5"><div className="w-[14px] h-[14px] border border-current rounded flex items-center justify-center text-[9px] opacity-50">P</div> PARQUEADERO<ArrowUpDown size={12} className={`transition-all ${sortConfig.key === 'parqueadero' ? 'text-blue-500 opacity-100' : 'opacity-0 group-hover:opacity-50'}`} /></div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-50 transition-colors rounded-lg group" onClick={() => handleSort('centroCosto')}>
+                                    <div className="flex items-center gap-1.5"><Building size={14} className="opacity-50"/> CENTRO DE COSTO<ArrowUpDown size={12} className={`transition-all ${sortConfig.key === 'centroCosto' ? 'text-blue-500 opacity-100' : 'opacity-0 group-hover:opacity-50'}`} /></div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><div className="flex items-center gap-1.5"><Banknote size={14} className="opacity-50"/> MONTO</div></th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center"><div className="flex items-center justify-center gap-1.5"><Loader2 size={14} className="opacity-50"/> ESTADO</div></th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {sortedRecaudaciones.length > 0 ? (
+                                sortedRecaudaciones.map((rec, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-2 py-4 text-[13px] text-slate-600">{rec.fecha}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-600">{rec.usuario}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-600">{rec.parqueadero}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-500 font-mono">{rec.centroCosto}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-800 font-medium">${parseFloat(rec.monto || 0).toFixed(2).replace('.', ',')}</td>
+                                        <td className="px-2 py-4 text-center">
+                                            <span className={`px-2 py-1 rounded text-[11px] ${rec.estado === 'Cargado Fuera de Tiempo' ? 'bg-amber-50 text-amber-600 font-medium' : rec.estado === 'Cargado' ? 'bg-emerald-50 text-emerald-600 font-medium' : 'bg-slate-100 text-slate-600'}`}>{rec.estado}</span>
+                                        </td>
+                                        <td className="px-2 py-4 text-center">
+                                            <button onClick={() => setDetalleModal(rec)} className="p-1.5 text-slate-400 hover:text-[#001F3F] hover:bg-slate-100 rounded-lg transition-colors" title="Ver detalle"><Eye size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="8" className="py-20 text-center">
+                                        <div className="flex flex-col items-center justify-center text-slate-400">
+                                            <Search size={40} className="mb-3 opacity-50" />
+                                            <p className="text-sm font-medium">No se han encontrado registros con estos filtros</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Modal Subir Recaudacion */}
+            {showModal && (
+                <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-white rounded-xl w-full max-w-[600px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                            <h3 className="text-[16px] font-medium text-slate-800">Agregar recaudación</h3>
+                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                            <div className="flex items-start gap-3 bg-white p-0">
+                                <div className="p-2 border border-blue-100 text-blue-500 rounded-lg shrink-0 mt-1"><Plus size={12}/></div>
+                                <p className="text-[13px] text-slate-600 leading-relaxed">Por favor, ingresa los detalles de la recaudación. Las cargas están limitadas a un rango de <span className="font-bold text-blue-600">4 días hacia atrás</span> desde hoy.</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">* PARQUEADERO</label>
+                                    <div className="relative">
+                                        <select value={form.parqueadero} onChange={e=>setForm({...form, parqueadero: e.target.value})} className="w-full appearance-none pl-3 pr-8 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 cursor-pointer bg-white">
+                                            <option value="" disabled>Selecciona el parqueadero</option>
+                                            {PARKING_LOTS.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">FECHA</label>
+                                    <input type="date" min={minDateStr} max={maxDateStr} value={form.fecha} onChange={e=>setForm({...form, fecha: e.target.value})} className="w-full px-3 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white cursor-pointer" />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">* USUARIO</label>
+                                    <input type="text" placeholder="Ejm: Carlos Alvarado" value={form.usuario} onChange={e=>setForm({...form, usuario: e.target.value})} className="w-full px-3 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400" />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">* OBSERVACIONES</label>
+                                    <textarea placeholder="Ejm: Depósito realizado con éxito..." value={form.observaciones} onChange={e=>setForm({...form, observaciones: e.target.value})} rows="2" className="w-full px-3 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400 resize-none"></textarea>
+                                </div>
+                            </div>
+
+                            <div className="pt-6 border-t border-slate-100">
+                                <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-3 block font-medium">COMPROBANTE</label>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <CategoryButton id="planillas" label="Planillas" isDone={isPlanillasDone} active={activeUploadCategory === 'planillas'} onClick={setActiveUploadCategory} />
+                                    </div>
+                                    <div>
+                                        <CategoryButton id="depositos" label="Depósitos" isDone={isDepositosDone} active={activeUploadCategory === 'depositos'} onClick={setActiveUploadCategory} />
+                                    </div>
+                                    <div>
+                                        <CategoryButton id="datafast" label="Datafast" isDone={isDatafastDone} active={activeUploadCategory === 'datafast'} onClick={setActiveUploadCategory} />
+                                    </div>
+                                </div>
+                                
+                                {activeUploadCategory === 'planillas' && (
+                                    <div className="mt-5 p-5 bg-blue-50/50 rounded-xl border border-blue-100">
+                                        <div className="grid grid-cols-2 gap-6 max-w-[400px] mx-auto">
+                                            <UploadButton label="PDF Escaneado" icon={<FileText size={20}/>} uploadKey="planillas_pdf" uploads={uploads} onUpload={handleUpload} />
+                                            <UploadButton label="Excel (XLSX)" icon={<FileText size={20}/>} uploadKey="planillas_xlsx" uploads={uploads} onUpload={handleUpload} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeUploadCategory === 'depositos' && (
+                                    <div className="mt-5 p-5 bg-blue-50/50 rounded-xl border border-blue-100">
+                                        <div className="grid grid-cols-2 gap-6 max-w-[500px] mx-auto mb-5">
+                                            <div className="flex flex-col gap-3">
+                                                <UploadButton label="Hora Fracción" icon={<ImageIcon size={20}/>} uploadKey="depositos_hora" uploads={uploads} onUpload={handleUpload} />
+                                                <div className="bg-white p-3 rounded-xl border border-blue-100 shadow-sm text-center">
+                                                    <label className="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-2 block">¿Concuerda Monto?</label>
+                                                    <div className="flex justify-center gap-3">
+                                                        <label className="flex items-center gap-1.5 text-xs"><input type="radio" value="si" checked={concuerdaMonto === 'si'} onChange={() => setConcuerdaMonto('si')} className="text-blue-600"/> Sí</label>
+                                                        <label className="flex items-center gap-1.5 text-xs"><input type="radio" value="no" checked={concuerdaMonto === 'no'} onChange={() => setConcuerdaMonto('no')} className="text-red-500"/> No</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <UploadButton label="Abonados" icon={<ImageIcon size={20}/>} uploadKey="depositos_abonados" uploads={uploads} onUpload={handleUpload} />
+                                            </div>
+                                        </div>
+                                        {concuerdaMonto === 'no' && (
+                                            <textarea placeholder="Observación de Depósito..." value={form.observacionesDeposito} onChange={e=>setForm({...form, observacionesDeposito: e.target.value})} rows="2" className="w-full px-4 py-2 border border-blue-200 rounded-lg text-sm bg-white"></textarea>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeUploadCategory === 'datafast' && (
+                                    <div className="mt-5 p-5 bg-blue-50/50 rounded-xl border border-blue-100">
+                                        <div className="max-w-[200px] mx-auto">
+                                            <UploadButton label="Datafast y Otros" icon={<ImageIcon size={20}/>} uploadKey="datafast" uploads={uploads} onUpload={handleUpload} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                            <button onClick={() => setShowModal(false)} className="px-5 py-2 font-medium text-slate-600 hover:text-slate-800">Cancelar</button>
+                            <button onClick={handleSave} disabled={!form.parqueadero || !form.usuario || !form.fecha} className="px-5 py-2 rounded bg-[#2563EB] hover:bg-blue-700 text-white font-medium disabled:opacity-50">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ─────────────────────── STUBS (Para evitar errores) ─────────────────────── */
+const TicketsView = () => <EmptyState icon={Ticket} title="Gestión de tickets abiertos" />;
+const PagosView = () => <EmptyState icon={CreditCard} title="Gestion de Pagos" />;
+const BancosView = ({empresa}) => <EmptyState icon={Landmark} title={`Bancos - ${empresa}`} />;
+const PyGView = () => <EmptyState icon={BarChart3} title="PyG" />;
+const PyGDetalleView = () => <EmptyState icon={BarChart3} title="PyG Detalle" />;
+const PyGCuentasView = () => <EmptyState icon={BarChart3} title="PyG Cuentas" />;
+const ValetsFijosView = () => <EmptyState icon={Car} title="Valet Fijos" />;
+const DescuentoAccesoriosView = () => <EmptyState icon={Settings2} title="Descuento Accesorios" />;
+
+/* ─────────────────────── MAIN APP COMPONENT ─────────────────────── */
+const App = () => {
+    // Estado para el historial de Recaudación
+    const [recaudaciones, setRecaudaciones] = useState([
+        { id: 'REC-829054', parqueadero: '18 de Septiembre', centroCosto: '0228290', usuario: 'Juan PErez', fecha: '2026-06-21', archivos: 3, estado: 'Cargado', observaciones: 'teste 1q', observacionesDeposito: 'Diferencia 5 dolares', montoEfectivo: '162.70', montoTarjeta: '95.11', montoTransferencia: '43.24', montoCredito: '60.24', monto: '361.29', uploads: { planillas_pdf: 'done', planillas_xlsx: 'done', depositos_hora: 'done' } },
+        { id: 'REC-1001', parqueadero: 'Centro Comercial Paseo San Francisco', centroCosto: '0221001', usuario: 'asdasd', fecha: '2026-06-18', archivos: 3, estado: 'Cargado', observaciones: 'Adjunto comprobantes', observacionesDeposito: '', montoEfectivo: '100.00', montoTarjeta: '50.00', montoTransferencia: '55.69', montoCredito: '0.00', monto: '205.69', uploads: { planillas_pdf: 'done', depositos_hora: 'done', datafast: 'done' } },
+        { id: 'REC-829055', parqueadero: 'Astecnia', centroCosto: '0223594', usuario: 'otro test', fecha: '2026-06-22', archivos: 5, estado: 'Cargado Fuera de Tiempo', observaciones: 'Entrega hoy', observacionesDeposito: '', montoEfectivo: '100.00', montoTarjeta: '36.18', montoTransferencia: '50.00', montoCredito: '50.00', monto: '236.18', uploads: { planillas_pdf: 'done', planillas_xlsx: 'done', depositos_hora: 'done', depositos_abonados: 'done', datafast: 'done' } }
+    ]);
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [activeTab, setActiveTab] = useState('dashboard'); 
+    const [selectedCompany, setSelectedCompany] = useState('Urbapark');
+    const [expandedMenus, setExpandedMenus] = useState({ 
+        operaciones: false, 
+        contabilidad: false,
+        nomina: true,
+        proyectos: true
+    });
+
+    useEffect(() => {
+        if (!document.getElementById('lucidbot-script')) {
+            const script1 = document.createElement("script");
+            script1.id = 'lucidbot-script';
+            script1.src = "https://panel.lucidbot.co/webchat/plugin.js?v=6";
+            script1.async = true;
+            document.body.appendChild(script1);
+
+            script1.onload = () => {
+                const script2 = document.createElement("script");
+                script2.innerHTML = `ktt10.setup({id:"vVZwO3PUyaF6cQ0tX7BX",accountId:"1793218",color:"#006dff"});`;
+                document.body.appendChild(script2);
+            };
+        }
+    }, []);
+
+    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+    const toggleMenu = (menuId) => setExpandedMenus(prev => ({ ...prev, [menuId]: !prev[menuId] }));
+    const isItemActive = (id) => activeTab === id;
+
+    const renderContent = () => {
+        if (activeTab === 'dashboard') return (
+            <div className="fade-up space-y-6">
+                <div><h1 className="text-3xl font-medium text-slate-800">Bienvenido, {selectedCompany}</h1><p className="text-slate-500 mt-1">Gestiona los servicios contratados</p></div>
+                <div className="bg-white rounded-3xl p-10 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100 flex flex-col md:flex-row items-center gap-12 mt-4">
+                    <div className="w-full md:w-1/2 flex justify-center py-4">
+                        <svg width="230" height="190" viewBox="0 0 230 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="20" y="35" width="190" height="125" rx="12" fill="#EEF2FF"/>
+                        <path d="M20 85 C 45 85,70 55,70 35 L20 35 Z" fill="#3B82F6"/>
+                        <rect x="55" y="105" width="28" height="38" rx="2" fill="#93C5FD"/>
+                        <rect x="100" y="75" width="28" height="68" rx="2" fill="#60A5FA"/>
+                        <rect x="145" y="115" width="28" height="28" rx="2" fill="#3B82F6"/>
+                        <circle cx="95" cy="155" r="13" fill="#1E3A8A"/>
+                        <path d="M72 185 C72 167,118 167,118 185" fill="#1E3A8A"/>
+                        <circle cx="153" cy="155" r="13" fill="#1E3A8A"/>
+                        <path d="M130 185 C130 167,176 167,176 185" fill="#1E3A8A"/>
+                        <rect x="88" y="46" width="38" height="4" rx="2" fill="#CBD5E1"/>
+                        <rect x="88" y="55" width="56" height="4" rx="2" fill="#CBD5E1"/>
+                        </svg>
+                    </div>
+                    <div className="w-full md:w-1/2 space-y-4">
+                        <div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Hola, Procesos</h2>
+                        <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-3">SITEC-DSP - BIENVENIDO AL SISTEMA DE GESTIÓN</p>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed text-sm">Pensando en facilitar los procesos internos de las empresas, sus clientes, personal interno y proveedores, hemos creado esta plataforma para que puedas gestionar todos tus procesos en un solo lugar, de manera fácil y rápida.</p>
+                        <p className="text-blue-600 font-medium text-sm">¡Bienvenido a SITEC-DSP, clientes y proveedores!</p>
+                    </div>
+                </div>
+            </div>
+        );
+        
+        // MÓDULOS PRINCIPALES DESARROLLADOS
+        if (activeTab === 'recaudacion') return <RecaudacionView recaudaciones={recaudaciones} setRecaudaciones={setRecaudaciones} />;
+        if (activeTab === 'descuento_accesorios') return <DescuentoAccesoriosView />;
+        if (activeTab === 'liq_bancos_contabilidad') return <LiquidacionBancosContabilidadView />;
+        if (activeTab === 'procesamiento_nomina') return <ProcesamientoNominaView />;
+        if (activeTab === 'inversiones') return <InversionesView />;
+        if (activeTab === 'plantilla_proveedores') return <PlantillaProveedoresView />;
+
+        return <EmptyState icon={Settings2} title="Sección en Construcción" />;
+    };
+
+    return (
+        <div className="flex h-screen overflow-hidden bg-[#F8FAFC] font-sans">
+            {/* Sidebar */}
+            <aside className={`bg-white border-r border-slate-200 flex flex-col transition-all duration-300 z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+                {/* Logo Area */}
+                <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100 shrink-0">
+                    {isSidebarOpen && (
+                        <div className="flex items-center gap-2 text-blue-600 overflow-hidden cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+                            <Network size={28} strokeWidth={2.5}/>
+                            <span className="font-black text-xl tracking-tight">SITEC</span>
+                            <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">DSP</span>
+                        </div>
+                    )}
+                    <button onClick={toggleSidebar} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors mx-auto">
+                        <Menu size={20} />
+                    </button>
+                </div>
+
+                {/* Navigation Menu */}
+                <div className="flex-1 overflow-y-auto py-4 custom-scrollbar">
+                    <nav className="space-y-1 px-3">
+                        
+                        {/* SERVICIOS TITLE */}
+                        {isSidebarOpen && <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2 mt-2">Servicios</div>}
+
+                        {/* Contabilidad y Finanzas */}
+                        <div className="mb-1">
+                            <button onClick={() => toggleMenu('contabilidad')} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${expandedMenus.contabilidad ? 'bg-slate-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                <div className="flex items-center gap-3">
+                                    <BarChart3 size={20} className={expandedMenus.contabilidad ? 'text-blue-500' : 'text-slate-400'}/>
+                                    {isSidebarOpen && <span className="font-medium text-[13px]">Contabilidad y Finanzas</span>}
+                                </div>
+                                {isSidebarOpen && <ChevronDown size={14} className={`transition-transform duration-200 ${expandedMenus.contabilidad ? 'rotate-180' : ''}`}/>}
+                            </button>
+                            {isSidebarOpen && expandedMenus.contabilidad && (
+                                <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    <button onClick={() => setActiveTab('recaudacion')} className={`w-full flex items-center p-2 rounded-lg text-[13px] transition-colors ${isItemActive('recaudacion') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Recaudación</button>
+                                    <button onClick={() => setActiveTab('liq_bancos_contabilidad')} className={`w-full flex items-center p-2 rounded-lg text-[13px] transition-colors ${isItemActive('liq_bancos_contabilidad') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Liquidación Bancos</button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Gestión de Personal */}
+                        <div className="mb-1">
+                            <button onClick={() => toggleMenu('nomina')} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${expandedMenus.nomina ? 'bg-slate-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                <div className="flex items-center gap-3">
+                                    <Users size={20} className={expandedMenus.nomina ? 'text-blue-500' : 'text-slate-400'}/>
+                                    {isSidebarOpen && <span className="font-medium text-[13px]">Gestión de Personal</span>}
+                                </div>
+                                {isSidebarOpen && <ChevronDown size={14} className={`transition-transform duration-200 ${expandedMenus.nomina ? 'rotate-180' : ''}`}/>}
+                            </button>
+                            {isSidebarOpen && expandedMenus.nomina && (
+                                <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    <button onClick={() => setActiveTab('procesamiento_nomina')} className={`w-full flex items-center p-2 rounded-lg text-[13px] transition-colors ${isItemActive('procesamiento_nomina') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Procesamiento nómina</button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Proyectos */}
+                        <div className="mb-1">
+                            <button onClick={() => toggleMenu('proyectos')} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${expandedMenus.proyectos ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                <div className="flex items-center gap-3">
+                                    <Briefcase size={20} className={expandedMenus.proyectos ? 'text-blue-500' : 'text-slate-400'}/>
+                                    {isSidebarOpen && <span className="font-medium text-[13px]">Proyectos</span>}
+                                </div>
+                                {isSidebarOpen && <ChevronDown size={14} className={`transition-transform duration-200 ${expandedMenus.proyectos ? 'rotate-180 text-blue-500' : 'text-slate-400'}`}/>}
+                            </button>
+                            {isSidebarOpen && expandedMenus.proyectos && (
+                                <div className="mt-1 ml-4 pl-4 border-l border-blue-200 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    <button onClick={() => setActiveTab('plantilla_proveedores')} className={`w-full flex items-center p-2 rounded-lg text-[13px] transition-colors ${isItemActive('plantilla_proveedores') ? 'bg-blue-100 text-blue-700 font-bold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Plantilla de proveedor</button>
+                                    <button onClick={() => setActiveTab('inversiones')} className={`w-full flex items-center p-2 rounded-lg text-[13px] transition-colors ${isItemActive('inversiones') ? 'bg-blue-100 text-blue-700 font-bold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Inversiones</button>
+                                </div>
+                            )}
+                        </div>
+
+                    </nav>
+                </div>
+
+                {/* User Profile */}
+                <div className="p-4 border-t border-slate-100 shrink-0 bg-slate-50/50">
+                    <div className={`flex items-center ${isSidebarOpen ? 'gap-3' : 'justify-center'} p-2 rounded-xl hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-slate-200 hover:shadow-sm`}>
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-200">
+                            PR
+                        </div>
+                        {isSidebarOpen && (
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-bold text-slate-800 truncate">Procesos</p>
+                                <p className="text-[11px] text-slate-500 truncate">procesos@urba-park.com</p>
+                            </div>
+                        )}
+                    </div>
+                    {isSidebarOpen && (
+                        <div className="mt-3 space-y-1">
+                            <button className="w-full flex items-center gap-3 p-2 text-[12px] text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg transition-colors">
+                                <Key size={14} className="text-slate-400"/> Llaves de acceso
+                            </button>
+                            <button className="w-full flex items-center gap-3 p-2 text-[12px] text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                <LogOut size={14} className="text-red-400"/> Cerrar sesión
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </aside>
+
+            {/* Main Content Area */}
+            <main className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC]">
+                {/* Header Navbar */}
+                <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-40">
+                    <div className="flex items-center gap-4">
+                        <h1 className="text-lg font-bold text-slate-800 capitalize">
+                            {activeTab.replace(/_/g, ' ')}
+                        </h1>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-[11px] font-bold text-slate-600">Online</span>
+                        </div>
+                        <div className="relative">
+                            <select 
+                                value={selectedCompany} 
+                                onChange={(e) => setSelectedCompany(e.target.value)}
+                                className="appearance-none pl-10 pr-8 py-2 bg-white border border-slate-200 rounded-full text-[13px] font-bold text-slate-700 outline-none focus:border-blue-400 cursor-pointer shadow-sm hover:bg-slate-50 transition-colors"
+                            >
+                                <option value="Urbapark">Urbapark</option>
+                                <option value="Sitec">Sitec</option>
+                            </select>
+                            <ShieldCheck size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"/>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                        </div>
+                        <button className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors relative">
+                            <Bell size={18} />
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                    </div>
+                </header>
+
+                {/* Main Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar relative">
+                    {renderContent()}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
