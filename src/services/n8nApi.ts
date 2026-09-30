@@ -10,7 +10,7 @@ export const N8N_API_CATALOG = {
   descuentosVariosSitec: '/api/n8n/webhook/descuentos/varios/sitec',
   reporteRecaudacionDetalle: '/api/n8n/webhook/reporte/recaudacion/detalle',
   reporteTransferenciaDetalle: '/api/n8n/webhook/reporte/transferencia/detalle',
-  plantillaProveedorProveedores: '/api/n8n-desarrollo/webhook/proyectos/plantilla/proveedores',
+  plantillaProveedorProveedores: '/api/n8n/webhook/proyectos/plantilla/proveedores',
 } as const;
 
 interface N8nOrdenCompraPayload {

@@ -1,7 +1,6 @@
 {
   "rewrites": [
     { "source": "/api/n8n/(.*)", "destination": "https://sitecapn-n8n.9hwbyc.easypanel.host/$1" },
-    { "source": "/api/n8n-desarrollo/(.*)", "destination": "https://sitecdesarrollo-n8n.9hwbyc.easypanel.host/$1" },
     { "source": "/api/(.*)", "destination": "/api/index" }
   ]
 }

@@ -110,12 +110,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/n8n/, ''),
         secure: false,
-      },
-      '/api/n8n-desarrollo': {
-        target: 'https://sitecdesarrollo-n8n.9hwbyc.easypanel.host',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/n8n-desarrollo/, ''),
-        secure: false,
       }
     }
   }
