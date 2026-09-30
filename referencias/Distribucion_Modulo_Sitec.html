@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal SITEC Urbapark</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes zoomIn { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .fade-up { animation: fadeInUp .45s ease both; }
+        .zoom-in { animation: zoomIn .2s ease both; }
+        .spin { animation: spin 1s linear infinite; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-[#F8FAFC]">
+<div id="root"></div>
+
+<script type="text/babel" data-type="module">
+import React, { useState, useEffect, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  Calculator, Settings2, Users, LogOut, Menu, Bell, ChevronDown, ChevronRight,
+  CreditCard, Ticket, Building, Filter, Download, Calendar, Clock, AlertCircle,
+  MoreVertical, Car, Upload, X, Save, FileCheck, CheckCircle2, List,
+  Store, Wallet, Landmark, FileUp, FileText, Check, AlertTriangle, RotateCw,
+  Video, Camera, Image as ImageIcon, User, Loader2, History, Layers, Eye,
+  Bike, BarChart3, PiggyBank, Receipt, Bus, Gift, Banknote, Smartphone,
+  Utensils, Percent, Network, Server, ClipboardList, ShieldCheck, Key,
+  Trash2, Plus, Pencil, ChevronLeft, ChevronUp, Unlock, Cpu, Wrench,
+  LayoutList, MapPin, Play, Send, Copy, Search, ShoppingCart, File,
+  ArrowUpDown
+} from 'lucide-react';
+
+/* ─────────────────────── CONSTANTS ─────────────────────── */
+const PARKING_LOTS = [
+  "18 de Septiembre","Aeropuerto","Aguacate Rumiñahui","Astecnia","Avalon Plaza",
+  "Centro Comercial El Bosque","Centro Comercial El Recreo","Centro Comercial La Y",
+  "Centro Comercial Mall del Sol","Centro Comercial Mall El Jardin",
+  "Centro Comercial Naciones Unidas","Centro Comercial Paseo San Francisco",
+  "Centro Comercial Policentro","Centro Comercial Real Plaza","Centro Comercial Scala",
+  "Ciudad Milenium","Clinica Pasteur","Hotel Colon","Hotel LeParc","Hotel Marriot",
+  "Hotel Quito","Hotel Swissotel","Supermaxi 12 de Octubre","Supermaxi San Gabriel",
+  "Torre Milenium","Village Plaza"
+];
+
+/* ─────────────────────── SMALL HELPERS ─────────────────────── */
+const EmptyState = ({ icon: Icon, title, desc }) => (
+  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-12 text-center flex flex-col items-center justify-center min-h-[400px] fade-up">
+    <div className="p-4 bg-slate-50 rounded-full mb-4 text-slate-300"><Icon size={48} /></div>
+    <h2 className="text-xl font-black text-slate-800 mb-2">{title}</h2>
+    <p className="text-slate-400 text-sm max-w-md">Este módulo se encuentra actualmente en construcción. Pronto podrás acceder a todas sus funcionalidades.</p>
+  </div>
+);
+
+const UploadButton = ({ label, icon, isVideo = false, uploadKey, uploads, onUpload, readOnly = false }) => {
+    const status = uploads && uploads[uploadKey];
+    const isDone = status === 'done';
+
+    return (
+        <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 ml-1 text-center block">{label}</label>
+            <button 
+                onClick={() => !readOnly && onUpload && onUpload(uploadKey)}
+                disabled={(!readOnly && isDone)} 
+                className={`w-full h-20 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all group bg-white
+                    ${status === 'loading' ? 'border-slate-300' :
+                    isDone && !readOnly ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 
+                    readOnly ? 'border-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:border-slate-400' : 
+                    'border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50'} 
+                `}
+            >
+                {status === 'loading' ? (
+                    <Loader2 size={24} className="animate-spin text-blue-500" />
+                ) : isDone && !readOnly ? (
+                    <div className="flex flex-col items-center animate-in zoom-in duration-300">
+                        <div className="p-1 bg-emerald-100 rounded-full mb-1"><Check size={16} /></div>
+                        <span className="text-[10px] font-bold">Cargado</span>
+                    </div>
+                ) : readOnly ? (
+                    <div className="flex flex-col items-center">
+                        <div className="p-1 bg-slate-200 rounded-full mb-1">{icon}</div>
+                        <span className="text-[10px] font-bold">Visualizar</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className="text-current transition-all">
+                            {icon}
+                        </div>
+                        <div className="text-center"><span className="font-medium text-[10px] block text-slate-400 group-hover:text-blue-500">{isVideo ? "Clic para cargar video" : "Clic para cargar"}</span></div>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+};
+
+/* ─────────────────────── Procesamiento a Nominaz (NOMINA) VIEW ─────────────────────── */
+const LiquidacionesBancosNominaView = () => {
+    
+    // Lista de rubros a procesar
+    const rubros = [
+        { id: 'movilizaciones', titulo: 'Procesar movilizaciones', icon: <Car size={20} />, color: 'blue', hasDistribuido: true },
+        { id: 'erol', titulo: 'Procesar E-Rol', icon: <FileText size={20} />, color: 'blue', hasDistribuido: false },
+        { id: 'bonos', titulo: 'Procesar bonos', icon: <Gift size={20} />, color: 'blue', hasDistribuido: true },
+        { id: 'hipotecarios', titulo: 'Procesar préstamos hipotecarios', icon: <Landmark size={20} />, color: 'blue', hasDistribuido: false },
+        { id: 'quirografarios', titulo: 'Procesar préstamos quirografarios', icon: <Landmark size={20} />, color: 'blue', hasDistribuido: false },
+        { id: 'celular', titulo: 'Procesar descuento celular', icon: <Smartphone size={20} />, color: 'blue', hasDistribuido: false },
+        { id: 'alimentacion', titulo: 'Procesar alimentación', icon: <Utensils size={20} />, color: 'purple', hasDistribuido: true },
+        { id: 'fondos', titulo: 'Procesar fondos de reserva', icon: <PiggyBank size={20} />, color: 'blue', hasDistribuido: false },
+        { id: 'enfermedad', titulo: 'Procesar subsidio enfermedad', icon: <FileText size={20} />, color: 'purple', hasDistribuido: false },
+        { id: 'maternidad', titulo: 'Procesar subsidio maternidad', icon: <FileText size={20} />, color: 'purple', hasDistribuido: false },
+        { id: 'multas', titulo: 'Procesar multas por memos', icon: <FileText size={20} />, color: 'purple', hasDistribuido: false },
+        { id: 'recaudacion', titulo: 'Procesar faltantes e incidentes de recaudación', icon: <Wallet size={20} />, color: 'purple', hasDistribuido: false },
+        { id: 'humana', titulo: 'Procesar Humana', icon: <Users size={20} />, color: 'blue', hasDistribuido: false },
+        { id: 'horas', titulo: 'Procesar Registro de Horas', icon: <Clock size={20} />, color: 'blue', hasDistribuido: true }
+    ];
+
+    const solicitudesRecientes = [
+        { fecha: '6/9/2026, 7:36:26 p. m.', modulo: 'Procesar faltantes e incidentes a Nominaz', estado: 'completo', progreso: 'Total: 0 | Enviados: 0 | Incompletos: 0 | Éxitos: 0 | Errores: 0' },
+        { fecha: '6/9/2026, 7:31:00 p. m.', modulo: 'Procesar subsidio maternidad a Nominaz', estado: 'completo', progreso: 'Total: 0 | Enviados: 0 | Incompletos: 0 | Éxitos: 0 | Errores: 0' },
+        { fecha: '4/9/2026, 5:07:51 p. m.', modulo: 'Procesar multas por memos a Nominaz', estado: 'completo', progreso: 'Total: 2 | Enviados: 2 | Incompletos: 0 | Éxitos: 2 | Errores: 0' },
+        { fecha: '4/9/2026, 5:05:11 p. m.', modulo: 'Procesar faltantes e incidentes a Nominaz', estado: 'completo', progreso: 'Total: 0 | Enviados: 0 | Incompletos: 0 | Éxitos: 0 | Errores: 0' },
+        { fecha: '4/9/2026, 5:01:53 p. m.', modulo: 'Procesar subsidio enfermedad a Nominaz', estado: 'completo', progreso: 'Total: 1 | Enviados: 1 | Incompletos: 0 | Éxitos: 1 | Errores: 0' },
+    ];
+
+    return (
+        <div className="space-y-6 fade-up max-w-[1200px] mx-auto pb-10">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-start gap-4">
+                    <div className="text-blue-500 mt-1"><Landmark size={28} strokeWidth={1.5}/></div>
+                    <div>
+                        <h2 className="text-[22px] font-medium text-slate-800 leading-tight">Procesamiento hacia Nominaz</h2>
+                        <p className="text-[13px] text-slate-500 mt-2 max-w-4xl leading-relaxed">
+                            Este módulo le permite enviar solicitudes de procesamiento de registros del sistema SITEC-DSP al sistema de nómina Nominaz. El procesamiento de los registros se realiza de manera asíncrona, por lo que puede tardar algunos minutos en completarse.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Info Banner */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <h3 className="text-[#001F3F] font-bold flex items-center gap-2 mb-2 text-sm">
+                    <AlertCircle size={16} className="text-blue-500"/> Información del periodo a ser procesado en las solicitudes
+                </h3>
+                <p className="text-[12px] text-slate-600 ml-6">
+                    Los rubros de RRHH a procesar de manera General y Distribuido correspondientes al periodo 2026-09
+                </p>
+            </div>
+
+            {/* Processing List */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100 mb-8">
+                {rubros.map((rubro) => (
+                    <div key={rubro.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0
+                                ${rubro.color === 'purple' ? 'border-purple-200 bg-purple-50 text-purple-500' : 'border-blue-200 bg-blue-50 text-blue-500'}
+                            `}>
+                                {rubro.icon}
+                            </div>
+                            <h4 className={`text-[14px] font-medium ${rubro.color === 'purple' ? 'text-purple-600' : 'text-[#004E7C]'}`}>
+                                {rubro.titulo}
+                            </h4>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 border border-emerald-100 text-emerald-500 hover:bg-emerald-100 transition-colors" title="Procesar General">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path></svg>
+                            </button>
+                            {rubro.hasDistribuido && (
+                                <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#004E7C] text-white hover:bg-[#003b5e] transition-colors" title="Procesar Distribuido">
+                                    <List size={14} strokeWidth={2.5}/>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+                
+                {/* Global Action Buttons */}
+                <div className="p-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
+                    <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#004E7C] text-white font-medium text-[13px] hover:bg-[#003b5e] transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path></svg>
+                        Procesar/Reprocesar General
+                    </button>
+                    <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#004E7C] text-white font-medium text-[13px] hover:bg-[#003b5e] transition-colors shadow-sm">
+                        <List size={16} strokeWidth={2.5}/>
+                        Procesar Distribuido General
+                    </button>
+                </div>
+            </div>
+
+            {/* Solicitudes Recientes Section */}
+            <div>
+                <h3 className="text-xl font-bold text-[#001F3F] mb-1">Solicitudes recientes</h3>
+                <p className="text-[12px] text-slate-500 mb-4">Se muestran las 30 solicitudes más recientes, en tiempo real desde Firestore.</p>
+                
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 border-b border-slate-100">
+                                <tr>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><Calendar size={14}/> SOLICITUD</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><div className="flex items-center gap-2"><Layers size={14}/> SUBMÓDULO</div></th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><div className="flex items-center gap-2"><Loader2 size={14}/> ESTADO</div></th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><div className="flex items-center gap-2"><List size={14}/> PROGRESO</div></th>
+                                    <th className="px-6 py-4 w-12"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {solicitudesRecientes.map((sol, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 text-[12px] text-slate-600">{sol.fecha}</td>
+                                        <td className="px-6 py-4 text-[12px] text-slate-700 font-medium">{sol.modulo}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-3 py-1 bg-emerald-600 text-white rounded-full text-[11px] font-bold">
+                                                {sol.estado}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-[12px] text-slate-600">{sol.progreso}</td>
+                                        <td className="px-6 py-4 text-center">
+                                            <button className="p-1.5 border border-blue-200 text-blue-500 rounded-lg hover:bg-blue-50 transition-colors">
+                                                <Eye size={16}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* ─────────────────────── DESCUENTO ACCESORIOS VIEW ─────────────────────── */
+const RevisionModal = ({ orden, onClose, onSave }) => {
+    const [facturas, setFacturas] = useState(orden.facturas || {});
+    const accesoriosUnicos = Array.from(new Set((orden.items || []).map(i => i.accesorio)));
+    const numOrdenDisplay = Object.values(orden.ordenes || {}).map(o => o?.orden).filter(Boolean).join(' / ') || 'S/N';
+
+    const handleSave = () => {
+        onSave(orden.id, facturas);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-[#F8FAFC] rounded-lg w-full max-w-[800px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-start p-6 pb-4 bg-[#F8FAFC]">
+                    <div>
+                        <h3 className="text-[20px] font-bold text-[#1E293B] leading-tight">
+                            Revisar Orden {numOrdenDisplay}
+                        </h3>
+                        <p className="text-[14px] text-[#64748B] mt-1">Agrega el número de factura. Las cuotas se registran automáticamente en 2.</p>
+                    </div>
+                    <button onClick={onClose} className="text-[14px] font-bold text-[#64748B] hover:text-[#1E293B] transition-colors pt-1">Cerrar</button>
+                </div>
+                
+                <div className="p-6 pt-2 overflow-y-auto custom-scrollbar bg-white border-y border-slate-200">
+                    {accesoriosUnicos.map(acc => {
+                        const itemsAcc = (orden.items || []).filter(i => i.accesorio === acc);
+                        const totalValor = parseFloat((orden.ordenes || {})[acc]?.total || 0);
+                        const valorPorPersona = itemsAcc.length > 0 ? totalValor / itemsAcc.length : 0;
+
+                        return (
+                            <div key={acc} className="mb-8">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <h4 className="font-bold text-[#1E293B] text-[16px] capitalize">{acc}</h4>
+                                    <label className="text-[13px] font-bold text-[#64748B] uppercase tracking-wider ml-2">NÚMERO DE FACTURA</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Número de factura" 
+                                        className="px-4 py-2 border border-slate-200 rounded-lg text-[14px] outline-none focus:border-blue-400 text-slate-700 shadow-sm w-[220px] transition-colors bg-white placeholder:text-[#94A3B8]"
+                                        value={facturas[acc] || ''}
+                                        onChange={e => setFacturas({...facturas, [acc]: e.target.value})}
+                                    />
+                                </div>
+                                <div className="border border-slate-200 rounded-[12px] overflow-hidden shadow-sm">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-[#F8FAFC] border-b border-slate-100">
+                                            <tr>
+                                                {['PERSONA', 'ACCESORIO', 'VALOR', 'CUOTAS'].map(h => (
+                                                    <th key={h} className="px-5 py-4 text-[12px] font-bold text-[#64748B] uppercase tracking-wider">{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {itemsAcc.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-5 py-4 text-[14px] font-semibold text-[#475569] uppercase">{item.empleado}</td>
+                                                    <td className="px-5 py-4 text-[14px] text-[#475569]">{item.accesorio} {item.talla && item.talla !== '—' ? `talla ${item.talla}` : ''}</td>
+                                                    <td className="px-5 py-4 text-[14px] font-bold text-[#334155]">${valorPorPersona.toFixed(2).replace('.', ',')}</td>
+                                                    <td className="px-5 py-4 text-[14px] font-semibold text-[#475569]">2</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-4 bg-[#F8FAFC] flex justify-end items-center gap-6 shrink-0 border-t border-slate-200">
+                    <button onClick={onClose} className="font-bold text-[#475569] hover:text-[#0F172A] transition-colors text-[14px]">Cancelar</button>
+                    <button onClick={handleSave} className="px-6 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white font-bold shadow-sm active:scale-95 transition-all text-[14px]">Guardar revisión</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const DescuentoAccesoriosView = ({
+    solicitudes, setSolicitudes,
+    ordenesCompra, setOrdenesCompra,
+    ordenForms, setOrdenForms
+}) => {
+    const [activeTab, setActiveTab] = useState('solicitar');
+    const [form, setForm] = useState({ empleado: '', centro: '', accesorio: 'Botas', talla: '' });
+    
+    const [expandedOrden, setExpandedOrden] = useState('');
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    
+    // Modals
+    const [modalActa, setModalActa] = useState(null);
+    const [uploadingActa, setUploadingActa] = useState(false);
+    const [modalRevision, setModalRevision] = useState(null);
+    const [expandedOrdenRevision, setExpandedOrdenRevision] = useState(null);
+
+    const handleAgregar = () => {
+        if (!form.empleado || !form.centro) return;
+        setSolicitudes(prev => [...prev, {
+            id: Date.now() + Math.random(),
+            empleado: form.empleado.toUpperCase(),
+            cedula: '09' + Math.floor(Math.random() * 10000000), 
+            centro: form.centro.toUpperCase(),
+            accesorio: form.accesorio,
+            talla: form.talla || '—',
+            actaSubida: false
+        }]);
+        setForm({ empleado: '', centro: '', accesorio: 'Botas', talla: '' });
+    };
+
+    const handleGenerar = () => setShowConfirm(true);
+    
+    const handleConfirm = () => {
+        const uniqueAccesorios = [...new Set(solicitudes.map(s => s.accesorio))];
+        const initialOrdenes = {};
+        uniqueAccesorios.forEach(acc => {
+            initialOrdenes[acc] = { status: 'pending', archivo: '', orden: '', total: '' };
+        });
+
+        const newOrder = {
+            id: 'SOL-' + Date.now(),
+            fecha: new Date().toLocaleDateString('es-EC', { day:'numeric', month:'numeric', year:'numeric' }),
+            estado: 'Solicitud creada',
+            pasoPendiente: 'Subir órdenes',
+            items: solicitudes.map(s => ({ ...s, actaSubida: false })),
+            ordenes: initialOrdenes,
+            facturas: {}
+        };
+        
+        setOrdenesCompra(prev => [newOrder, ...prev]);
+        setExpandedOrden(newOrder.id); 
+        
+        setShowConfirm(false);
+        setShowSuccess(true);
+    };
+
+    const handleSuccessClose = () => {
+        setShowSuccess(false);
+        setSolicitudes([]); 
+        setActiveTab('orden_compra'); 
+    };
+
+    const handleSubirOrdenClick = (solId, acc) => {
+        setOrdenForms(prev => ({ ...prev, [`${solId}-${acc}`]: { ...prev[`${solId}-${acc}`], loading: true } }));
+        setTimeout(() => {
+            setOrdenesCompra(prev => prev.map(sol => {
+                if (sol.id !== solId) return sol;
+                const updatedOrdenes = {
+                    ...sol.ordenes,
+                    [acc]: { ...sol.ordenes[acc], status: 'needs_info', archivo: `Orden_compra_${acc}_2026.pdf` }
+                };
+                return { ...sol, ordenes: updatedOrdenes };
+            }));
+            setOrdenForms(prev => ({ ...prev, [`${solId}-${acc}`]: { loading: false, orden: '', total: '' } }));
+        }, 1000);
+    };
+
+    const handleGuardarOrdenDetalle = (solId, acc) => {
+        const formData = ordenForms[`${solId}-${acc}`];
+        if (!formData || !formData.orden || !formData.total) return;
+
+        setOrdenesCompra(prev => prev.map(sol => {
+            if (sol.id !== solId) return sol;
+            const updatedOrdenes = {
+                ...sol.ordenes,
+                [acc]: { ...sol.ordenes[acc], orden: formData.orden, total: formData.total, status: 'completed' }
+            };
+            const uniqueAccs = Array.from(new Set((sol.items || []).map(i => i.accesorio)));
+            const allCompleted = uniqueAccs.every(a => updatedOrdenes[a] && updatedOrdenes[a].status === 'completed');
+            
+            return {
+                ...sol,
+                ordenes: updatedOrdenes,
+                ...(allCompleted ? { pasoPendiente: 'Subir actas' } : {})
+            };
+        }));
+    };
+
+    const handleSubirActa = () => {
+        setUploadingActa(true);
+        setTimeout(() => {
+            setUploadingActa(false);
+            setOrdenesCompra(prev => prev.map(sol => {
+                if (sol.id !== modalActa.solId) return sol;
+                
+                const updatedItems = (sol.items || []).map(item =>
+                    item.id === modalActa.item.id ? { ...item, actaSubida: true } : item
+                );
+                
+                const pendingActas = updatedItems.filter(i => !i.actaSubida).length;
+                
+                return { 
+                    ...sol, 
+                    items: updatedItems,
+                    ...(pendingActas === 0 ? { estado: 'Pedido Realizado', pasoPendiente: 'Revisión' } : {})
+                };
+            }));
+            setModalActa(null); 
+        }, 1000);
+    };
+
+    const handleSaveRevision = (solId, facturas) => {
+        setOrdenesCompra(prev => prev.map(sol => {
+            if (sol.id !== solId) return sol;
+            return { ...sol, estado: 'Revisado', pasoPendiente: 'Completado', facturas };
+        }));
+        setModalRevision(null);
+    };
+
+    const getActasCount = (orden) => {
+        if (!orden || !orden.items) return { subidas: 0, total: 0 };
+        return { subidas: orden.items.filter(i => i.actaSubida).length, total: orden.items.length };
+    };
+
+    return (
+        <div className="space-y-6 fade-up pb-10">
+            {modalRevision && (
+                <RevisionModal 
+                    orden={modalRevision} 
+                    onClose={() => setModalRevision(null)} 
+                    onSave={handleSaveRevision} 
+                />
+            )}
+
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg text-[#001F3F] border border-slate-200 shadow-sm"><ShoppingCart size={24} strokeWidth={2.5}/></div>
+                    <div>
+                        <h2 className="text-2xl font-bold text-[#001F3F] tracking-tight">Solicitud Accesorios</h2>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="inline-flex items-center p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                {['Solicitar', 'Orden de Compra', 'Revisión'].map(tab => {
+                    const id = tab.toLowerCase().replace(/ /g, '_');
+                    const isActive = activeTab === id;
+                    return (
+                        <button key={id} onClick={() => setActiveTab(id)}
+                            className={`px-8 py-2.5 text-[14px] font-medium rounded-xl transition-all relative ${isActive ? 'bg-blue-50/50 text-blue-600 border border-blue-200/60 shadow-sm' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50 border border-transparent'}`}>
+                            {tab}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Content: Solicitar */}
+            {activeTab === 'solicitar' && (
+                <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300 max-w-5xl">
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
+                                <ShoppingCart size={20} strokeWidth={2.5} />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 tracking-wide">Nueva solicitud</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">EMPLEADO</label>
+                                <input type="text" placeholder="Buscar empleado..." value={form.empleado} onChange={e=>setForm({...form, empleado: e.target.value})} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 transition-colors text-slate-700 placeholder:text-slate-400 shadow-sm" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">CENTRO DE COSTO</label>
+                                <input type="text" placeholder="Buscar centro..." value={form.centro} onChange={e=>setForm({...form, centro: e.target.value})} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 transition-colors text-slate-700 placeholder:text-slate-400 shadow-sm" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">ACCESORIO</label>
+                                <div className="relative">
+                                    <select value={form.accesorio} onChange={e=>setForm({...form, accesorio: e.target.value})} className="w-full appearance-none pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 transition-colors cursor-pointer text-slate-700 font-medium shadow-sm">
+                                        <option value="Botas">Botas</option>
+                                        <option value="Auriculares">Auriculares</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16}/>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">TALLA</label>
+                                <input type="text" placeholder="Escribir talla" value={form.talla} onChange={e=>setForm({...form, talla: e.target.value})} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 transition-colors text-slate-700 placeholder:text-slate-400 shadow-sm" />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button onClick={handleAgregar} disabled={!form.empleado || !form.centro} className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-sm ${form.empleado && form.centro ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                                <Plus size={18} strokeWidth={3} /> Agregar
+                            </button>
+                        </div>
+                    </div>
+
+                    {solicitudes.length > 0 && (
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden max-w-5xl">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="font-bold text-slate-800 text-base">Empleados en solicitud</h3>
+                                    <span className="bg-blue-100 text-blue-700 font-bold px-3 py-1 rounded-full text-xs">{solicitudes.length}</span>
+                                </div>
+                                <button onClick={handleGenerar} className="px-6 py-2.5 bg-[#059669] hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md transition-all active:scale-95 flex items-center gap-2">
+                                    Generar solicitud <ChevronRight size={16}/>
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Empleado</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cédula</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Centro de costo</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Accesorio</th>
+                                            <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Talla</th>
+                                            <th className="px-6 py-4 w-16"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {solicitudes.map((s) => (
+                                            <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4 text-[13px] font-bold text-slate-700">{s.empleado}</td>
+                                                <td className="px-6 py-4 text-[13px] text-slate-500 font-mono">{s.cedula}</td>
+                                                <td className="px-6 py-4 text-[13px] text-slate-600">{s.centro}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${s.accesorio === 'Botas' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                                        {s.accesorio}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-[13px] text-slate-700 font-medium">{s.talla}</td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <button onClick={() => setSolicitudes(prev => prev.filter(item => item.id !== s.id))} className="text-slate-400 hover:text-red-500 transition-colors">
+                                                        <Trash2 size={16}/>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Content: Orden de Compra */}
+            {activeTab === 'orden_compra' && (
+                <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-300 max-w-5xl mx-auto">
+                    <div className="p-6 border-b border-slate-100 bg-[#F8FAFC]">
+                        <p className="text-[14px] text-slate-500 font-medium">Gestiona las solicitudes de accesorios y carga sus documentos de orden y validación por tipo de accesorio.</p>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {ordenesCompra.length > 0 ? (
+                            ordenesCompra.map(orden => {
+                                const { subidas, total } = getActasCount(orden);
+                                return (
+                                <div key={orden.id} className="bg-white">
+                                    {/* Header / Collapsed */}
+                                    <div className="p-6 flex flex-col md:flex-row md:items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors gap-4" onClick={() => setExpandedOrden(expandedOrden === orden.id ? null : orden.id)}>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] flex items-center justify-center text-[#3B82F6] shadow-sm">
+                                                <FileText size={20} className="fill-current opacity-20" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-[15px] font-black text-[#1E293B]">{orden.id}</h4>
+                                                <p className="text-[12px] text-[#94A3B8]">Solicitud de accesorios</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <span className={`px-4 py-1.5 rounded-full text-[12px] font-bold border ${orden.estado === 'Solicitud creada' ? 'bg-[#FFFBEB] text-[#F59E0B] border-[#FDE68A]' : 'bg-[#ECFDF5] text-[#10B981] border-[#A7F3D0]'}`}>
+                                                {orden.estado}
+                                            </span>
+                                            <div className="w-8 h-8 flex items-center justify-center transition-colors text-slate-400">
+                                                <ChevronRight size={18} className={`transform transition-transform ${expandedOrden === orden.id ? 'rotate-90' : ''}`} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Expanded Content */}
+                                    {expandedOrden === orden.id && (
+                                        <div className="p-6 pt-2 border-t border-slate-50 bg-white space-y-8 animate-in slide-in-from-top-2 duration-300">
+                                            {/* Metadata */}
+                                            <div className="text-[13px] text-slate-600 space-y-1">
+                                                <p>Fecha: <span className="font-medium text-slate-800">{orden.fecha}</span></p>
+                                                <p>Estado actual: <span className="font-medium text-slate-800">{orden.estado}</span></p>
+                                                <p>Paso pendiente: <span className="font-bold text-[#001F3F]">{orden.pasoPendiente}</span></p>
+                                            </div>
+
+                                            {/* Mostrar Detalles SIEMPRE (incluso si está completado, para evitar que se pierdan) */}
+                                            <div>
+                                                {orden.pasoPendiente === 'Subir actas' || orden.pasoPendiente === 'Revisión' || orden.pasoPendiente === 'Completado' ? (
+                                                    <div>
+                                                        <div className="flex justify-between items-end mb-3">
+                                                            <h4 className="font-bold text-[#001F3F] text-base">Detalle de items y actas</h4>
+                                                            <span className="font-bold text-[#001F3F] text-sm bg-orange-50 text-orange-600 px-3 py-1 rounded-lg border border-orange-200">
+                                                                Actas subidas: {subidas} de {total}
+                                                            </span>
+                                                        </div>
+                                                        <div className="border border-slate-200 rounded-xl overflow-hidden mb-6 shadow-sm">
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-left">
+                                                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                                                        <tr>
+                                                                            {['Cédula', 'Nombre', 'Accesorio', 'Talla', 'Acta'].map(h => <th key={h} className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100">
+                                                                        {(orden.items || []).map((item, i) => (
+                                                                            <tr key={i} className="hover:bg-slate-50">
+                                                                                <td className="px-4 py-3 text-[12px] text-slate-500 font-mono whitespace-nowrap">{item.cedula}</td>
+                                                                                <td className="px-4 py-3 text-[12px] font-bold text-slate-700 whitespace-nowrap">{item.empleado}</td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${item.accesorio === 'Botas' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                                                                        {item.accesorio}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-[12px] text-slate-600">{item.talla}</td>
+                                                                                <td className="px-4 py-3">
+                                                                                    <button onClick={() => setModalActa({ solId: orden.id, item })} 
+                                                                                        className={`p-1.5 rounded-lg transition-colors ${item.actaSubida ? 'text-emerald-600 bg-emerald-50 border border-emerald-200 shadow-sm' : 'text-slate-400 border border-slate-200 hover:text-[#001F3F] hover:bg-slate-100'}`} title="Ver Acta">
+                                                                                        <Eye size={16} />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <div className="flex justify-between items-end mb-3">
+                                                            <h4 className="font-bold text-[#001F3F] text-sm">Detalle de accesorios solicitados</h4>
+                                                            <span className="text-[11px] text-slate-500 hidden sm:block">Solo visualización de productos solicitados.</span>
+                                                        </div>
+                                                        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-left">
+                                                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                                                        <tr>
+                                                                            {['Cédula', 'Nombre', 'Accesorio', 'Talla'].map(h => <th key={h} className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100">
+                                                                        {(orden.items || []).length > 0 ? (orden.items || []).map((item, i) => (
+                                                                            <tr key={i} className="hover:bg-slate-50">
+                                                                                <td className="px-4 py-3 text-[12px] text-slate-500 font-mono whitespace-nowrap">{item.cedula}</td>
+                                                                                <td className="px-4 py-3 text-[12px] font-bold text-slate-700 whitespace-nowrap">{item.empleado}</td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${item.accesorio === 'Botas' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                                                                        {item.accesorio}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-[12px] text-slate-600">{item.talla}</td>
+                                                                            </tr>
+                                                                        )) : (
+                                                                            <tr><td colSpan="4" className="px-4 py-8 text-center text-sm text-slate-400 bg-slate-50/50">No hay items detallados para esta solicitud.</td></tr>
+                                                                        )}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Cards Carga de Órdenes - Siempre visibles para evitar pérdida visual */}
+                                                <div className="mt-8">
+                                                    <div className="flex justify-between items-end mb-4">
+                                                        <h4 className="font-bold text-[#001F3F] text-base">Orden de Compra</h4>
+                                                        <span className="text-[11px] text-slate-500 hidden sm:block">Sube una orden por cada tipo de accesorio solicitado.</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {orden.ordenes && Object.keys(orden.ordenes).map(acc => {
+                                                            const accData = orden.ordenes[acc] || { status: 'pending' };
+                                                            const accForm = ordenForms[`${orden.id}-${acc}`] || { loading: false, orden: '', total: '' };
+
+                                                            return (
+                                                                <div key={acc} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col h-full bg-white">
+                                                                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                                        <h5 className="font-bold text-slate-800 text-[13px]">Orden de {acc}</h5>
+                                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${acc === 'Botas' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                                                            {acc}
+                                                                        </span>
+                                                                    </div>
+                                                                    
+                                                                    {/* Contenido Card Dinámico */}
+                                                                    {accData.status === 'completed' ? (
+                                                                        <div className="p-5 bg-slate-50/50 flex flex-col justify-between flex-1 animate-in zoom-in-95 duration-300">
+                                                                            <div className="space-y-2 mb-4">
+                                                                                <p className="text-[12px] text-slate-500"><span className="font-bold text-[#001F3F]">Archivo:</span> <span className="text-blue-600 hover:underline cursor-pointer">{accData.archivo}</span></p>
+                                                                                <p className="text-[12px] text-slate-500"><span className="font-bold text-[#001F3F]">Orden:</span> {accData.orden}</p>
+                                                                                <p className="text-[12px] text-slate-500"><span className="font-bold text-[#001F3F]">Total:</span> ${parseFloat(accData.total).toFixed(2).replace('.', ',')}</p>
+                                                                            </div>
+                                                                            <button className="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg text-[13px] font-bold shadow-sm transition-colors flex items-center justify-center gap-2">
+                                                                                <Download size={16} /> Descargar {acc}
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : accData.status === 'needs_info' ? (
+                                                                        <div className="p-5 bg-blue-50/30 flex flex-col gap-4 flex-1 animate-in slide-in-from-top-2 duration-300">
+                                                                            <div className="flex items-center gap-2 text-[12px] text-blue-600 font-medium bg-blue-100/50 p-2 rounded-lg">
+                                                                                <FileCheck size={16}/> {accData.archivo}
+                                                                            </div>
+                                                                            <div className="space-y-3 flex-1">
+                                                                                <div>
+                                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Número de Orden</label>
+                                                                                    <input type="text" placeholder="Ej. OC-1111" className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400" 
+                                                                                        value={accForm.orden} onChange={e=>setOrdenForms(p=>({...p, [`${orden.id}-${acc}`]: {...accForm, orden:e.target.value}}))}/>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Valor Total ($)</label>
+                                                                                    <input type="number" placeholder="Ej. 160.00" className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400" 
+                                                                                        value={accForm.total} onChange={e=>setOrdenForms(p=>({...p, [`${orden.id}-${acc}`]: {...accForm, total:e.target.value}}))}/>
+                                                                                </div>
+                                                                            </div>
+                                                                            <button onClick={()=>handleGuardarOrdenDetalle(orden.id, acc)} disabled={!accForm.orden || !accForm.total} className="w-full py-2.5 bg-[#001F3F] text-white rounded-lg text-[13px] font-bold shadow-sm hover:bg-blue-900 transition-colors disabled:opacity-50">
+                                                                                Guardar Detalles
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="p-6 flex-1 flex flex-col justify-center items-center space-y-4">
+                                                                            <p className="text-[12px] text-slate-500 text-center">Aún no se ha cargado la orden de compra para este accesorio.</p>
+                                                                            <button onClick={()=>handleSubirOrdenClick(orden.id, acc)} disabled={accForm.loading} className="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg text-[13px] font-bold shadow-sm transition-colors flex items-center justify-center gap-2">
+                                                                                {accForm.loading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} Subir Orden de {acc}
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {(!orden.items || orden.items.length === 0) && (
+                                                            <div className="col-span-1 md:col-span-2 p-8 text-center text-slate-400 text-sm border border-slate-200 border-dashed rounded-xl bg-slate-50">
+                                                                No hay accesorios requeridos en esta solicitud para subir órdenes.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                            })
+                        ) : (
+                            <div className="p-12 text-center text-slate-400 bg-slate-50">
+                                <FileText size={40} className="mx-auto mb-3 opacity-50" />
+                                <p className="text-sm font-medium">No hay órdenes de compra pendientes.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Content: Revisión (IDÉNTICO A image_67317e.png con Accordion) */}
+            {activeTab === 'revision' && (
+                <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm p-8 max-w-[1000px] animate-in fade-in zoom-in-95 duration-300 mx-auto">
+                    <div className="flex justify-between items-center mb-6">
+                        <p className="text-[14px] text-slate-500 font-medium">Visualiza las compras de accesorios realizadas</p>
+                        <button className="px-5 py-2.5 bg-[#059669] hover:bg-emerald-700 text-white font-bold rounded-lg text-[13px] shadow-sm transition-all active:scale-95 flex items-center justify-center">
+                            Descargar Excel
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-[#F8FAFC] border-y border-slate-100">
+                                <tr>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider w-10"></th>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">NÚMERO ORDEN</th>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">ARCHIVO ORDEN</th>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">FECHA</th>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">FACTURA</th>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider text-center">TOTAL VALOR</th>
+                                    <th className="px-4 py-4 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider text-center">REVISIÓN</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 border-b border-slate-100">
+                                {ordenesCompra.filter(o => o.pasoPendiente === 'Revisión' || o.estado === 'Revisado' || o.estado === 'Pedido Realizado').length > 0 ? (
+                                    ordenesCompra.filter(o => o.pasoPendiente === 'Revisión' || o.estado === 'Revisado' || o.estado === 'Pedido Realizado').map(orden => {
+                                        const numOrden = Object.values(orden.ordenes || {}).map(o => o?.orden).filter(Boolean).join(' / ') || 'S/N';
+                                        const numArchivos = Object.keys(orden.ordenes || {}).length;
+                                        
+                                        let archivoDisplay = orden.archivoDisplay || (numArchivos > 1 ? `${numArchivos} ordenes cargadas` : (Object.values(orden.ordenes || {})[0]?.archivo || '1 orden cargada'));
+                                        
+                                        const totalOrderValor = Object.values(orden.ordenes || {}).reduce((sum, o) => sum + parseFloat(o?.total || 0), 0);
+                                        const facturasText = orden.estado === 'Revisado' && orden.facturas && Object.keys(orden.facturas).length > 0
+                                            ? Object.entries(orden.facturas).map(([k,v]) => `${k}: ${v}`).join(' / ')
+                                            : 'Pendiente revisión';
+                                        
+                                        const isExpanded = expandedOrdenRevision === orden.id;
+
+                                        return (
+                                            <React.Fragment key={orden.id}>
+                                                <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setExpandedOrdenRevision(isExpanded ? null : orden.id)}>
+                                                    <td className="px-4 py-5">
+                                                        {isExpanded ? <ChevronDown size={14} className="text-slate-500" /> : <Play size={10} className="fill-current text-[#CBD5E1]"/>}
+                                                    </td>
+                                                    <td className="px-4 py-5 text-[13px] font-semibold text-[#475569]">{numOrden}</td>
+                                                    <td className="px-4 py-5 text-[13px] text-[#64748B]">{archivoDisplay}</td>
+                                                    <td className="px-4 py-5 text-[13px] text-[#64748B]">{orden.fecha}</td>
+                                                    <td className="px-4 py-5 text-[13px] text-[#64748B] max-w-[320px] truncate" title={facturasText}>
+                                                        {facturasText}
+                                                    </td>
+                                                    <td className="px-4 py-5 text-[13px] font-bold text-[#1E293B] text-center">${totalOrderValor.toFixed(2).replace('.', ',')}</td>
+                                                    <td className="px-4 py-5 text-center flex justify-center">
+                                                        {orden.estado === 'Revisado' ? (
+                                                            <button onClick={(e) => e.stopPropagation()} className="w-[84px] py-1.5 bg-[#059669] text-white rounded-md text-[12px] font-bold shadow-sm cursor-default">
+                                                                Revisado
+                                                            </button>
+                                                        ) : (
+                                                            <button onClick={(e) => { e.stopPropagation(); setModalRevision(orden); }} className="w-[84px] py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white rounded-md text-[12px] font-bold shadow-sm transition-all active:scale-95">
+                                                                Revisar
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                                {/* Detalle Desplegable */}
+                                                {isExpanded && (
+                                                    <tr className="bg-white">
+                                                        <td colSpan="7" className="px-12 py-6 border-b border-slate-100">
+                                                            <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                                                            <table className="w-full text-left bg-white">
+                                                                <tbody className="divide-y divide-slate-50">
+                                                                    {(orden.items || []).map((item, idx) => {
+                                                                        const count = (orden.items || []).filter(i => i.accesorio === item.accesorio).length || 1;
+                                                                        const totalA = parseFloat((orden.ordenes || {})[item.accesorio]?.total || 0);
+                                                                        const valorItem = totalA / count;
+                                                                        return (
+                                                                            <tr key={idx} className="hover:bg-slate-50/50">
+                                                                                <td className="px-6 py-4 text-[12px] font-bold text-slate-600 uppercase w-1/3">{item.empleado}</td>
+                                                                                <td className="px-6 py-4 text-[12px] text-slate-500 font-mono w-1/5">{item.cedula}</td>
+                                                                                <td className="px-6 py-4 text-[12px] text-slate-600 w-1/4">
+                                                                                    {item.accesorio} {item.talla && item.talla !== '—' ? `talla ${item.talla}` : ''}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-[12px] text-slate-500 text-center w-32">2 cuota(s)</td>
+                                                                                <td className="px-6 py-4 text-[13px] font-bold text-slate-700 text-right">${valorItem.toFixed(2).replace('.', ',')}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })
+                                ) : (
+                                    <tr><td colSpan="7" className="py-12 text-center text-slate-400 text-sm bg-slate-50/50">No hay órdenes para revisar en este momento.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Confirmación Generar Solicitud */}
+            {showConfirm && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowConfirm(false)}/>
+                    <div className="relative bg-white rounded-3xl w-full max-w-[400px] shadow-2xl overflow-hidden zoom-in flex flex-col p-8 text-center">
+                        <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-6">
+                            <AlertCircle size={40} className="text-blue-600" />
+                        </div>
+                        <h3 className="text-2xl font-black text-[#001F3F] mb-3">Confirmar solicitud</h3>
+                        <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+                            ¿Está seguro de que desea guardar esta solicitud con <span className="font-bold text-slate-700">{solicitudes.length}</span> artículos?
+                        </p>
+                        <div className="flex gap-3 justify-center">
+                            <button onClick={() => setShowConfirm(false)} className="px-6 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors text-sm flex-1 shadow-sm">
+                                Cancelar
+                            </button>
+                            <button onClick={handleConfirm} className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md active:scale-95 transition-all text-sm flex-1">
+                                Guardar solicitud
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Guardado con Éxito */}
+            {showSuccess && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleSuccessClose}/>
+                    <div className="relative bg-white rounded-3xl w-full max-w-[400px] shadow-2xl overflow-hidden zoom-in flex flex-col items-center">
+                        <div className="bg-emerald-50 w-full p-8 flex flex-col items-center border-b border-emerald-100">
+                            <div className="w-20 h-20 rounded-full border-4 border-emerald-500 flex items-center justify-center mb-4 bg-white shadow-sm">
+                                <Check size={40} className="text-emerald-500" strokeWidth={3} />
+                            </div>
+                            <h3 className="text-2xl font-black text-emerald-800">¡Guardado con éxito!</h3>
+                        </div>
+                        <div className="p-8 text-center w-full">
+                            <p className="text-slate-600 text-sm mb-8 leading-relaxed">
+                                La solicitud ha sido creada correctamente. Puede continuar el proceso en la pestaña de Orden de Compra.
+                            </p>
+                            <button onClick={handleSuccessClose} className="px-10 py-3 rounded-xl bg-[#059669] text-white font-bold hover:bg-emerald-700 shadow-md active:scale-95 transition-all text-sm">
+                                Aceptar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Subir Acta */}
+            {modalActa && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setModalActa(null)}/>
+                    <div className="relative bg-white rounded-3xl w-full max-w-[450px] shadow-2xl overflow-hidden zoom-in flex flex-col">
+                        <div className="flex justify-between items-start p-6 border-b border-slate-100 bg-slate-50/50">
+                            <div>
+                                <h3 className="text-lg font-black text-[#001F3F] leading-tight">Acta - {modalActa.item.empleado}</h3>
+                                <p className="text-[12px] text-slate-500 mt-1">Cédula: {modalActa.item.cedula}</p>
+                            </div>
+                            <button onClick={() => setModalActa(null)} className="text-slate-400 hover:text-slate-700 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><X size={18}/></button>
+                        </div>
+                        
+                        <div className="p-6 pb-2">
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 mb-6 relative">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Accesorio Solicitado</p>
+                                <div className="flex items-center gap-3">
+                                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${modalActa.item.accesorio === 'Botas' ? 'bg-white text-amber-600 border border-amber-200 shadow-sm' : 'bg-white text-purple-600 border border-purple-200 shadow-sm'}`}>
+                                        {modalActa.item.accesorio}
+                                    </span>
+                                    <span className="text-[12px] text-slate-600 font-medium">Talla: <span className="font-bold text-slate-800">{modalActa.item.talla}</span></span>
+                                </div>
+                                
+                                {(()=>{
+                                    const currentOrdenForActa = ordenesCompra.find(o => o.id === modalActa.solId);
+                                    const actasSubidas = currentOrdenForActa ? currentOrdenForActa.items.filter(i => i.actaSubida).length : 0;
+                                    const totalActas = currentOrdenForActa ? currentOrdenForActa.items.length : 0;
+                                    return (
+                                        <div className="absolute right-5 bottom-4 text-[11px] text-slate-500 font-medium bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
+                                            Actas subidas: <span className="font-bold text-[#001F3F]">{actasSubidas}</span> de {totalActas}
+                                        </div>
+                                    )
+                                })()}
+                            </div>
+
+                            <div className="space-y-3">
+                                <button className="w-full py-3 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl text-[13px] font-bold shadow-md transition-all flex items-center justify-center gap-2">
+                                    <Download size={16} /> Generar Acta
+                                </button>
+                                <button 
+                                    onClick={handleSubirActa}
+                                    disabled={modalActa.item.actaSubida || uploadingActa}
+                                    className={`w-full py-3 border-2 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 shadow-sm
+                                        ${modalActa.item.actaSubida ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-95 cursor-pointer'}
+                                    `}>
+                                    {uploadingActa ? <Loader2 size={16} className="animate-spin" /> : 
+                                    modalActa.item.actaSubida ? <Check size={16} /> : <Upload size={16} />}
+                                    {modalActa.item.actaSubida ? 'Acta Subida Exitosamente' : 'Subir Acta'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 pt-2">
+                            <button onClick={() => setModalActa(null)} className="w-full text-[13px] font-bold text-slate-500 hover:text-slate-800 py-3 transition-colors">
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+/* ─────────────────────── RECAUDACIÓN VIEW ─────────────────────── */
+
+const CategoryButton = ({ label, id, isDone, active, onClick }) => (
+    <button 
+        onClick={() => onClick(id)}
+        className={`w-full h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all 
+            ${active ? 'border-blue-400 bg-blue-50 text-blue-600' : 
+              isDone ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 
+              'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+    >
+        {isDone ? <CheckCircle2 size={24} className="text-emerald-500"/> : <ImageIcon size={24} className={active ? "text-blue-500" : "text-red-400"} />}
+        <span className="text-[12px] font-bold">{isDone ? 'Cargado' : label}</span>
+        {!isDone && <span className="text-[10px] text-slate-400">Clic para cargar</span>}
+    </button>
+);
+
+// MODAL PARA EL DETALLE DEL OJO EN RECAUDACION
+const DetalleRecaudacionModal = ({ recaudacion, onClose }) => {
+    
+    // Nombres para las llaves de subida en la interfaz
+    const docNames = {
+        planillas_pdf: 'Planillas (PDF)',
+        planillas_xlsx: 'Planillas (Excel)',
+        depositos_hora: 'Depósitos (Hora Fracción)',
+        depositos_abonados: 'Depósitos (Abonados)',
+        datafast: 'Datafast y Otros'
+    };
+    
+    const uploadedKeys = Object.keys(recaudacion.uploads || {}).filter(k => recaudacion.uploads[k] === 'done');
+
+    return (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-lg w-full max-w-[750px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50">
+                    <h3 className="text-[15px] font-bold text-slate-800">Detalle de Recaudación</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
+                </div>
+                
+                <div className="flex flex-col md:flex-row p-6 overflow-y-auto custom-scrollbar gap-8">
+                    {/* Left Side: Documentos de respaldo DINÁMICOS */}
+                    <div className="w-full md:w-1/3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 mb-2 text-[#001F3F]">
+                            <Wallet size={20}/>
+                            <div>
+                                <h4 className="text-[13px] font-bold">Detalle de carga</h4>
+                                <p className="text-[10px] text-slate-500">Información registrada el {recaudacion.fecha}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4 mt-4">
+                            {uploadedKeys.length > 0 ? uploadedKeys.map(k => (
+                                <div key={k} className="flex flex-col gap-1.5">
+                                    <div className="border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 shadow-sm animate-in zoom-in duration-300">
+                                        <FileText size={24} className="text-blue-500 mb-2" />
+                                        <p className="text-[11px] font-bold text-[#001F3F] leading-tight">{docNames[k]}</p>
+                                        <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-1"><Check size={12}/> Cargado</p>
+                                    </div>
+                                    <button className="flex items-center justify-center gap-1.5 text-orange-500 hover:text-orange-600 text-[10px] font-bold transition-colors">
+                                        <Eye size={12}/> Ver {docNames[k]}
+                                    </button>
+                                </div>
+                            )) : (
+                                <div className="border border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-center h-32 bg-slate-50">
+                                    <p className="text-[11px] text-slate-500">Sin documentos de respaldo</p>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center mt-4">Documentos subidos por el usuario</p>
+                    </div>
+
+                    {/* Right Side: Desglose de información */}
+                    <div className="w-full md:w-2/3 space-y-6">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h4 className="font-bold text-slate-800 text-[15px]">Registro de recaudación</h4>
+                            <span className={`px-3 py-1 text-white rounded-full text-[10px] font-bold ${recaudacion.estado === 'Cargado Fuera de Tiempo' ? 'bg-amber-500' : 'bg-slate-600'}`}>
+                                {recaudacion.estado}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 text-[12px]">
+                            <div className="flex bg-slate-50 p-2 rounded">
+                                <span className="font-bold text-[#001F3F] w-1/3">Usuario:</span>
+                                <span className="text-slate-600">{recaudacion.usuario}</span>
+                            </div>
+                            <div className="flex p-2 rounded">
+                                <span className="font-bold text-[#001F3F] w-1/3">Parqueadero:</span>
+                                <span className="text-slate-600">{recaudacion.parqueadero}</span>
+                            </div>
+                            <div className="flex bg-slate-50 p-2 rounded">
+                                <span className="font-bold text-[#001F3F] w-1/3">Centro de Costo:</span>
+                                <span className="text-slate-600 font-mono">{recaudacion.centroCosto || 'S/N'}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h5 className="text-[11px] font-bold text-[#001F3F] flex items-center gap-2 mb-2">
+                                <ChevronRight size={14} className="text-slate-400"/> INFORMACIÓN GENERAL
+                            </h5>
+                            <div className="space-y-1.5 text-[12px] pl-4">
+                                <div className="flex bg-slate-50 p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Fecha de registro:</span>
+                                    <span className="text-slate-600">{recaudacion.fecha}</span>
+                                </div>
+                                <div className="flex p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Efectivo:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoEfectivo || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Tarjeta:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoTarjeta || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Transferencia:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoTransferencia || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 rounded">
+                                    <span className="font-bold text-[#001F3F] w-1/3">Monto Crédito:</span>
+                                    <span className="text-slate-600">${parseFloat(recaudacion.montoCredito || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-blue-50/50 p-2 rounded border border-blue-100 mt-1">
+                                    <span className="font-bold text-blue-800 w-1/3">Total:</span>
+                                    <span className="text-blue-800 font-black text-[13px]">${parseFloat(recaudacion.monto || 0).toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 rounded flex-col gap-1 mt-2">
+                                    <span className="font-bold text-[#001F3F]">Observaciones:</span>
+                                    <span className="text-slate-600 leading-relaxed">{recaudacion.observaciones || 'Sin observaciones adicionales'}</span>
+                                </div>
+                                {recaudacion.observacionesDeposito && (
+                                    <div className="flex bg-blue-50/50 p-2 rounded flex-col gap-1 border border-blue-100 mt-2">
+                                        <span className="font-bold text-blue-700 flex items-center gap-1.5"><Banknote size={12}/> Observación de Depósito:</span>
+                                        <span className="text-slate-600 leading-relaxed">{recaudacion.observacionesDeposito}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="p-4 bg-white border-t border-slate-100 flex justify-between items-center shrink-0">
+                    <button className="p-2 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                        <Trash2 size={18} />
+                    </button>
+                    <button onClick={onClose} className="px-6 py-2 border border-slate-300 text-slate-600 rounded-full text-[13px] font-medium hover:bg-slate-50 transition-colors shadow-sm">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const RecaudacionView = ({ recaudaciones, setRecaudaciones }) => {
+    const [showModal, setShowModal] = useState(false);
+    const [detalleModal, setDetalleModal] = useState(null);
+    const [form, setForm] = useState({ parqueadero: '', usuario: '', fecha: '', observaciones: '', observacionesDeposito: '' });
+    
+    // Estado para Ordenamiento
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+    // Estado para "Concuerda Monto"
+    const [concuerdaMonto, setConcuerdaMonto] = useState('si');
+
+    // El estado de los archivos subidos es ahora individual y dinámico
+    const [uploads, setUploads] = useState({ 
+        planillas_pdf: null, planillas_xlsx: null, 
+        depositos_hora: null, depositos_abonados: null, 
+        datafast: null 
+    });
+    
+    // Categoría activa para el despliegue de botones inferiores
+    const [activeUploadCategory, setActiveUploadCategory] = useState(null);
+
+    // Filtros
+    const [filtroFecha, setFiltroFecha] = useState('');
+    const [filtroEstado, setFiltroEstado] = useState('Todos');
+    const [filtroParqueadero, setFiltroParqueadero] = useState('');
+
+    const handleUpload = (key) => {
+        setUploads(prev => ({ ...prev, [key]: 'loading' }));
+        setTimeout(() => setUploads(prev => ({ ...prev, [key]: 'done' })), 1000);
+    };
+
+    // Helper para obtener la fecha en formato YYYY-MM-DD
+    const getLocalDateStr = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Lógica para fechas permitidas (Hoy - 3 días hasta Hoy)
+    const todayObj = new Date();
+    const maxDateStr = getLocalDateStr(todayObj);
+    
+    const minDateObj = new Date(todayObj);
+    minDateObj.setDate(minDateObj.getDate() - 3);
+    const minDateStr = getLocalDateStr(minDateObj);
+
+    const handleSave = () => {
+        if (!form.parqueadero || !form.usuario || !form.fecha) return;
+        
+        // Sumamos solo los archivos que están marcados como 'done'
+        const uploadedCount = Object.keys(uploads).filter(k => uploads[k] === 'done').length;
+
+        // Simulamos los montos desglosados
+        const efe = (Math.random() * 200).toFixed(2);
+        const tar = (Math.random() * 100).toFixed(2);
+        const trans = (Math.random() * 50).toFixed(2);
+        const cred = (Math.random() * 50).toFixed(2);
+        const total = (parseFloat(efe) + parseFloat(tar) + parseFloat(trans) + parseFloat(cred)).toFixed(2);
+
+        // Generamos el código de centro de costo
+        const cCosto = '022' + Math.floor(1000 + Math.random() * 9000).toString();
+
+        // Si "Concuerda Monto" es 'si', no enviamos observación de depósito
+        const obsDepositoFinal = concuerdaMonto === 'no' ? form.observacionesDeposito : '';
+
+        // Determinación del Estado por Fecha
+        const estadoFinal = form.fecha === maxDateStr ? 'Cargado Fuera de Tiempo' : 'Cargado';
+
+        const newRecaudacion = {
+            id: 'REC-' + Math.floor(Math.random() * 1000000),
+            centroCosto: cCosto,
+            ...form,
+            observacionesDeposito: obsDepositoFinal,
+            archivos: uploadedCount,
+            uploads: { ...uploads },
+            estado: estadoFinal,
+            montoEfectivo: efe,
+            montoTarjeta: tar,
+            montoTransferencia: trans,
+            montoCredito: cred,
+            monto: total
+        };
+        setRecaudaciones(prev => [newRecaudacion, ...prev]);
+        setShowModal(false);
+        setForm({ parqueadero: '', usuario: '', fecha: '', observaciones: '', observacionesDeposito: '' });
+        setUploads({ planillas_pdf: null, planillas_xlsx: null, depositos_hora: null, depositos_abonados: null, datafast: null });
+        setActiveUploadCategory(null);
+        setConcuerdaMonto('si'); // Resetear
+    };
+
+    // Lógica de Ordenamiento
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // Cálculos de finalización para las categorías principales
+    const isPlanillasDone = uploads.planillas_pdf === 'done' || uploads.planillas_xlsx === 'done';
+    const isDepositosDone = uploads.depositos_hora === 'done' || uploads.depositos_abonados === 'done';
+    const isDatafastDone = uploads.datafast === 'done';
+
+    // Aplicar Filtros (Fecha, Estado, Parqueadero)
+    const filteredRecaudaciones = recaudaciones.filter(rec => {
+        const matchFecha = !filtroFecha || rec.fecha === filtroFecha;
+        const matchEstado = filtroEstado === 'Todos' || rec.estado === filtroEstado;
+        const matchParqueadero = !filtroParqueadero || rec.parqueadero.toLowerCase().includes(filtroParqueadero.toLowerCase());
+        return matchFecha && matchEstado && matchParqueadero;
+    });
+
+    // Aplicar Ordenamiento
+    const sortedRecaudaciones = [...filteredRecaudaciones].sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const totalMonto = filteredRecaudaciones.reduce((sum, rec) => sum + parseFloat(rec.monto || 0), 0);
+    const summaryDateText = filtroFecha ? filtroFecha : 'Todas las fechas';
+
+    return (
+        <div className="space-y-6 fade-up pb-10 max-w-[1200px] mx-auto">
+            {detalleModal && (
+                <DetalleRecaudacionModal 
+                    recaudacion={detalleModal} 
+                    onClose={() => setDetalleModal(null)} 
+                />
+            )}
+
+            {/* Cabecera Principal */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-start gap-4">
+                    <div className="text-blue-500 mt-1"><Wallet size={28} strokeWidth={1.5}/></div>
+                    <div>
+                        <h2 className="text-[22px] font-medium text-slate-800 leading-tight">Recaudación</h2>
+                        <p className="text-[13px] text-slate-500 mt-1">Desde esta sección podrás gestionar las cargas de recaudación por parqueadero</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[100px] shadow-sm">
+                        <Plus size={16} className="text-orange-500 mb-1" />
+                        recaudación
+                    </button>
+                </div>
+            </div>
+
+            {/* Contenedor Principal */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 min-h-[500px] flex flex-col">
+                
+                {/* Filtros y Resumen */}
+                <div className="flex justify-between items-end mb-6">
+                    <div className="flex gap-3 flex-wrap">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">FECHA</label>
+                            <div className="relative">
+                                <input 
+                                    type="date" 
+                                    value={filtroFecha} 
+                                    onChange={e=>setFiltroFecha(e.target.value)} 
+                                    className="appearance-none pl-3 pr-3 py-1.5 border border-slate-200 rounded-full text-[12px] text-slate-600 outline-none focus:border-blue-400 cursor-pointer bg-white min-w-[130px]" 
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">ESTADO</label>
+                            <div className="relative">
+                                <select value={filtroEstado} onChange={e=>setFiltroEstado(e.target.value)} className="appearance-none pl-4 pr-8 py-1.5 border border-slate-200 rounded-full text-[12px] text-slate-600 outline-none focus:border-blue-400 cursor-pointer bg-white min-w-[110px]">
+                                    <option value="Todos">Todos</option>
+                                    <option value="Cargado">Cargado</option>
+                                    <option value="Cargado Fuera de Tiempo">Cargado Fuera de T.</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none" size={14}/>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">PARQUEADERO</label>
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    list="parqueaderos-list"
+                                    placeholder="Buscar..."
+                                    value={filtroParqueadero} 
+                                    onChange={e=>setFiltroParqueadero(e.target.value)} 
+                                    className="appearance-none pl-4 pr-8 py-1.5 border border-slate-200 rounded-full text-[12px] text-slate-600 outline-none focus:border-blue-400 bg-white min-w-[180px] placeholder:text-slate-300" 
+                                />
+                                <datalist id="parqueaderos-list">
+                                    {PARKING_LOTS.map(p => <option key={p} value={p} />)}
+                                </datalist>
+                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="text-right shrink-0">
+                        <p className="text-[11px] text-slate-500 mb-1">Total | {summaryDateText}</p>
+                        <p className="text-2xl font-bold text-slate-800 leading-none mb-2">$ {totalMonto.toFixed(2).replace('.', ',')}</p>
+                        <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 text-[11px] rounded font-medium">
+                            {filteredRecaudaciones.length} recaudaciones
+                        </span>
+                    </div>
+                </div>
+
+                {/* Tabla de Datos */}
+                <div className="overflow-x-auto flex-1 flex flex-col">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="border-b border-slate-100">
+                            <tr>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                    <div className="flex items-center gap-1.5"><Calendar size={14} className="opacity-50"/> FECHA</div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                    <div className="flex items-center gap-1.5"><User size={14} className="opacity-50"/> USUARIO</div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-50 transition-colors rounded-lg group" onClick={() => handleSort('parqueadero')}>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-[14px] h-[14px] border border-current rounded flex items-center justify-center text-[9px] opacity-50">P</div> 
+                                        PARQUEADERO
+                                        <ArrowUpDown size={12} className={`transition-all ${sortConfig.key === 'parqueadero' ? 'text-blue-500 opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
+                                    </div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-50 transition-colors rounded-lg group" onClick={() => handleSort('centroCosto')}>
+                                    <div className="flex items-center gap-1.5">
+                                        <Building size={14} className="opacity-50"/> CENTRO DE COSTO
+                                        <ArrowUpDown size={12} className={`transition-all ${sortConfig.key === 'centroCosto' ? 'text-blue-500 opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
+                                    </div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                    <div className="flex items-center gap-1.5"><Banknote size={14} className="opacity-50"/> MONTO</div>
+                                </th>
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
+                                    <div className="flex items-center justify-center gap-1.5"><Loader2 size={14} className="opacity-50"/> ESTADO</div>
+                                </th>
+                                {/* Columna del Ojo */}
+                                <th className="px-2 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {sortedRecaudaciones.length > 0 ? (
+                                sortedRecaudaciones.map((rec, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-2 py-4 text-[13px] text-slate-600">{rec.fecha}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-600">{rec.usuario}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-600">{rec.parqueadero}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-500 font-mono">{rec.centroCosto}</td>
+                                        <td className="px-2 py-4 text-[13px] text-slate-800 font-medium">${parseFloat(rec.monto || 0).toFixed(2).replace('.', ',')}</td>
+                                        <td className="px-2 py-4 text-center">
+                                            <span className={`px-2 py-1 rounded text-[11px] ${
+                                                rec.estado === 'Cargado Fuera de Tiempo' ? 'bg-amber-50 text-amber-600 font-medium' : 
+                                                rec.estado === 'Cargado' ? 'bg-emerald-50 text-emerald-600 font-medium' : 
+                                                'bg-slate-100 text-slate-600'
+                                            }`}>
+                                                {rec.estado}
+                                            </span>
+                                        </td>
+                                        {/* Botón de Detalles (Ojo) */}
+                                        <td className="px-2 py-4 text-center">
+                                            <button 
+                                                onClick={() => setDetalleModal(rec)} 
+                                                className="p-1.5 text-slate-400 hover:text-[#001F3F] hover:bg-slate-100 rounded-lg transition-colors"
+                                                title="Ver detalle"
+                                            >
+                                                <Eye size={16}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="8" className="py-20 text-center">
+                                        <div className="flex flex-col items-center justify-center text-slate-400">
+                                            <div className="relative mb-4">
+                                                <div className="w-16 h-16 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center">
+                                                    <Search size={24} className="text-blue-500" />
+                                                </div>
+                                                <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-blue-500"></div>
+                                                <div className="absolute -top-1 -right-1 w-2 h-2 border-t-2 border-r-2 border-blue-500"></div>
+                                                <div className="absolute -bottom-1 -left-1 w-2 h-2 border-b-2 border-l-2 border-blue-500"></div>
+                                                <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-blue-500"></div>
+                                            </div>
+                                            <h3 className="text-2xl font-medium text-slate-700 mb-2">Sin registros</h3>
+                                            <p className="text-sm">No se han encontrado registros con estos filtros</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Modal Subir Recaudacion */}
+            {showModal && (
+                <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-white rounded-xl w-full max-w-[600px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                            <h3 className="text-[16px] font-medium text-slate-800">Agregar recaudación</h3>
+                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                            {/* Información Superior */}
+                            <div className="flex items-start gap-3 bg-white p-0">
+                                <div className="p-2 border border-blue-100 text-blue-500 rounded-lg shrink-0 mt-1">
+                                    <div className="flex items-center gap-1">
+                                        <Plus size={12}/> <Wallet size={16}/>
+                                    </div>
+                                </div>
+                                <p className="text-[13px] text-slate-600 leading-relaxed">
+                                    Por favor, ingresa los detalles de la recaudación. Las cargas están limitadas a un rango de <span className="font-bold text-blue-600">4 días hacia atrás</span> desde hoy.
+                                </p>
+                            </div>
+
+                            {/* Formulario Superior */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">* PARQUEADERO</label>
+                                    <div className="relative">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-[16px] h-[16px] border border-orange-400 rounded text-orange-400 flex items-center justify-center text-[10px] font-bold">P</div>
+                                        <select value={form.parqueadero} onChange={e=>setForm({...form, parqueadero: e.target.value})} className="w-full appearance-none pl-10 pr-8 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 cursor-pointer bg-white">
+                                            <option value="" disabled>Selecciona el parqueadero</option>
+                                            {PARKING_LOTS.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex flex-col">
+                                            <ChevronUp size={12} className="-mb-1"/>
+                                            <ChevronDown size={12}/>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">FECHA</label>
+                                    <div className="relative">
+                                        <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-400" />
+                                        <input 
+                                            type="date" 
+                                            min={minDateStr}
+                                            max={maxDateStr}
+                                            value={form.fecha} 
+                                            onChange={e=>setForm({...form, fecha: e.target.value})} 
+                                            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white cursor-pointer" 
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1 ml-1">Solo puedes registrar recaudaciones de los últimos 4 días.</p>
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">* USUARIO</label>
+                                    <div className="relative">
+                                        <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-400" />
+                                        <input type="text" placeholder="Ejm: Carlos Alvarado" value={form.usuario} onChange={e=>setForm({...form, usuario: e.target.value})} className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400" />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-1 block font-medium">* OBSERVACIONES</label>
+                                    <div className="relative">
+                                        <FileText size={16} className="absolute left-3 top-3 text-orange-400" />
+                                        <textarea placeholder="Ejm: Depósito realizado con éxito..." value={form.observaciones} onChange={e=>setForm({...form, observaciones: e.target.value})} rows="2" className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded text-[13px] outline-none focus:border-blue-400 text-slate-700 bg-white placeholder:text-slate-400 resize-none"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Carga de Archivos */}
+                            <div className="pt-6 border-t border-slate-100">
+                                <label className="text-[11px] text-blue-500 uppercase tracking-wider mb-3 block font-medium">COMPROBANTE</label>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[12px] font-bold text-slate-700 mb-2 block text-center">Planillas</label>
+                                        <CategoryButton id="planillas" label="Clic para cargar" isDone={isPlanillasDone} active={activeUploadCategory === 'planillas'} onClick={setActiveUploadCategory} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[12px] font-bold text-slate-700 mb-2 block text-center">Depósitos</label>
+                                        <CategoryButton id="depositos" label="Clic para cargar" isDone={isDepositosDone} active={activeUploadCategory === 'depositos'} onClick={setActiveUploadCategory} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[12px] font-bold text-slate-700 mb-2 block text-center">Datafast y Otros</label>
+                                        <CategoryButton id="datafast" label="Clic para cargar" isDone={isDatafastDone} active={activeUploadCategory === 'datafast'} onClick={setActiveUploadCategory} />
+                                    </div>
+                                </div>
+                                <p className="text-center text-[11px] text-slate-500 mt-4">Seleccione la categoría arriba para desplegar las opciones de carga</p>
+                                
+                                {/* Opciones desplegables según la categoría seleccionada */}
+                                {activeUploadCategory === 'planillas' && (
+                                    <div className="mt-5 p-5 bg-blue-50/50 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 duration-200">
+                                        <h4 className="text-[12px] font-bold text-blue-800 uppercase tracking-wider mb-4 text-center flex items-center justify-center gap-2">
+                                            <FileText size={16}/> Documentos de Planillas
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-6 max-w-[400px] mx-auto">
+                                            <UploadButton label="PDF Escaneado" icon={<FileText size={20}/>} uploadKey="planillas_pdf" uploads={uploads} onUpload={handleUpload} />
+                                            <UploadButton label="Excel (XLSX)" icon={<FileText size={20}/>} uploadKey="planillas_xlsx" uploads={uploads} onUpload={handleUpload} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeUploadCategory === 'depositos' && (
+                                    <div className="mt-5 p-5 bg-blue-50/50 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 duration-200">
+                                        <h4 className="text-[12px] font-bold text-blue-800 uppercase tracking-wider mb-4 text-center flex items-center justify-center gap-2">
+                                            <Banknote size={16}/> Documentos de Depósitos
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-6 max-w-[500px] mx-auto mb-5">
+                                            {/* Columna Hora Fracción agrupada con su check */}
+                                            <div className="flex flex-col gap-3">
+                                                <UploadButton label="Hora Fracción" icon={<ImageIcon size={20}/>} uploadKey="depositos_hora" uploads={uploads} onUpload={handleUpload} />
+                                                <div className="bg-white p-3 rounded-xl border border-blue-100 shadow-sm text-center">
+                                                    <label className="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-2 block">¿Concuerda Monto?</label>
+                                                    <div className="flex justify-center gap-3">
+                                                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                                            <input type="radio" name="concuerda" value="si" checked={concuerdaMonto === 'si'} onChange={() => setConcuerdaMonto('si')} className="text-blue-600 focus:ring-blue-500" />
+                                                            Sí
+                                                        </label>
+                                                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                                            <input type="radio" name="concuerda" value="no" checked={concuerdaMonto === 'no'} onChange={() => setConcuerdaMonto('no')} className="text-red-500 focus:ring-red-500" />
+                                                            No
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Columna Abonados aislada */}
+                                            <div>
+                                                <UploadButton label="Abonados" icon={<ImageIcon size={20}/>} uploadKey="depositos_abonados" uploads={uploads} onUpload={handleUpload} />
+                                            </div>
+                                        </div>
+
+                                        {concuerdaMonto === 'no' && (
+                                            <div className="max-w-[500px] mx-auto animate-in fade-in zoom-in-95 duration-200">
+                                                <label className="text-[11px] font-bold text-blue-800 uppercase tracking-wider mb-2 block">Observación de Depósito (Hora Fracción)</label>
+                                                <textarea 
+                                                    placeholder="Ejm: Diferencia de $5 justificada por..." 
+                                                    value={form.observacionesDeposito} 
+                                                    onChange={e=>setForm({...form, observacionesDeposito: e.target.value})} 
+                                                    rows="2" 
+                                                    className="w-full px-4 py-2 border border-blue-200 rounded-lg text-sm outline-none focus:border-blue-400 text-slate-700 shadow-sm resize-none bg-white placeholder:text-slate-400"
+                                                ></textarea>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeUploadCategory === 'datafast' && (
+                                    <div className="mt-5 p-5 bg-blue-50/50 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 duration-200">
+                                        <h4 className="text-[12px] font-bold text-blue-800 uppercase tracking-wider mb-4 text-center flex items-center justify-center gap-2">
+                                            <CreditCard size={16}/> Comprobantes Datafast
+                                        </h4>
+                                        <div className="grid grid-cols-1 gap-6 max-w-[200px] mx-auto">
+                                            <UploadButton label="Datafast y Otros" icon={<ImageIcon size={20}/>} uploadKey="datafast" uploads={uploads} onUpload={handleUpload} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                            <button onClick={() => setShowModal(false)} className="px-5 py-2 font-medium text-slate-600 hover:text-slate-800 transition-colors text-[13px]">Cancelar</button>
+                            <button onClick={handleSave} disabled={!form.parqueadero || !form.usuario || !form.fecha} className="px-5 py-2 rounded bg-[#2563EB] hover:bg-blue-700 text-white font-medium shadow-sm active:scale-95 transition-all text-[13px] disabled:opacity-50 disabled:cursor-not-allowed">Guardar recaudación</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ─────────────────────── STUBS (Para evitar errores si no estaban definidos) ─────────────────────── */
+const TicketsView = () => <EmptyState icon={Ticket} title="Gestión de tickets abiertos" />;
+const PagosView = () => <EmptyState icon={CreditCard} title="Gestion de Pagos" />;
+const BancosView = ({empresa}) => <EmptyState icon={Landmark} title={`Bancos - ${empresa}`} />;
+const PyGView = () => <EmptyState icon={BarChart3} title="PyG" />;
+const PyGDetalleView = () => <EmptyState icon={BarChart3} title="PyG Detalle" />;
+const PyGCuentasView = () => <EmptyState icon={BarChart3} title="PyG Cuentas" />;
+const ValetsFijosView = () => <EmptyState icon={Car} title="Valet Fijos" />;
+
+/* ─────────────────────── MAIN APP ─────────────────────── */
+const App = () => {
+    // Declaración principal del Estado global de la vista
+    const [accSolicitudes, setAccSolicitudes] = useState([]);
+    const [accOrdenesCompra, setAccOrdenesCompra] = useState([
+        { 
+            id: 'SOL-1779479638188', 
+            fecha: '28/05/2026, 14:10', 
+            estado: 'Revisado', 
+            pasoPendiente: 'Completado', 
+            items: [
+                { id: 103, cedula: '0912345678', empleado: 'MARIA GOMEZ', accesorio: 'Botas', talla: '40', actaSubida: true }
+            ],
+            ordenes: {
+                'Botas': { status: 'completed', archivo: 'Orden_Botas.pdf', orden: 'OC-1234', total: '80.00' }
+            },
+            facturas: {
+                'Botas': '010001000055'
+            }
+        },
+        { 
+            id: 'SOL-1777331154572', 
+            fecha: '26/05/2026, 11:30', 
+            estado: 'Pendiente revisión', 
+            pasoPendiente: 'Revisión', 
+            items: [
+                { id: 104, cedula: '0987654321', empleado: 'CARLOS RUIZ', accesorio: 'Auriculares', talla: '—', actaSubida: true }
+            ],
+            ordenes: {
+                'Auriculares': { status: 'completed', archivo: 'Orden_Auri.pdf', orden: 'OC-5552', total: '185.00' }
+            },
+            facturas: {}
+        }
+    ]);
+    const [accOrdenForms, setAccOrdenForms] = useState({});
+
+    // Estado para el historial de Recaudación (COINCIDE EXACTO CON LA IMAGEN)
+    const [recaudaciones, setRecaudaciones] = useState([
+        { id: 'REC-829054', parqueadero: '18 de Septiembre', centroCosto: '0228290', usuario: 'Juan PErez', fecha: '2026-06-21', archivos: 3, estado: 'Cargado', observaciones: 'teste 1q', observacionesDeposito: 'Diferencia 5 dolares', montoEfectivo: '162.70', montoTarjeta: '95.11', montoTransferencia: '43.24', montoCredito: '60.24', monto: '361.29', uploads: { planillas_pdf: 'done', planillas_xlsx: 'done', depositos_hora: 'done' } },
+        { id: 'REC-1001', parqueadero: 'Centro Comercial Paseo San Francisco', centroCosto: '0221001', usuario: 'asdasd', fecha: '2026-06-18', archivos: 3, estado: 'Cargado', observaciones: 'Adjunto comprobantes', observacionesDeposito: '', montoEfectivo: '100.00', montoTarjeta: '50.00', montoTransferencia: '55.69', montoCredito: '0.00', monto: '205.69', uploads: { planillas_pdf: 'done', depositos_hora: 'done', datafast: 'done' } },
+        { id: 'REC-829055', parqueadero: 'Astecnia', centroCosto: '0223594', usuario: 'otro test', fecha: '2026-06-22', archivos: 5, estado: 'Cargado Fuera de Tiempo', observaciones: 'Entrega hoy', observacionesDeposito: '', montoEfectivo: '100.00', montoTarjeta: '36.18', montoTransferencia: '50.00', montoCredito: '50.00', monto: '236.18', uploads: { planillas_pdf: 'done', planillas_xlsx: 'done', depositos_hora: 'done', depositos_abonados: 'done', datafast: 'done' } }
+    ]);
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [activeTab, setActiveTab] = useState('liquidaciones_bancos_nomina'); 
+    const [selectedCompany, setSelectedCompany] = useState('Urbapark');
+    const [pygFiltros, setPygFiltros] = useState({ periodo: '', tipoReporte: 'general', centroCosto: '' });
+    const [expandedMenus, setExpandedMenus] = useState({ 
+        operaciones: false, 
+        contabilidad: false,
+        nomina: true,
+        pagos_facturacion: false,
+        integraciones: false,
+        mantenimiento: false
+    });
+
+    // EFFECT: INYECTAR LUCIDBOT SCRIPT DINÁMICAMENTE
+    useEffect(() => {
+        // Evitamos inyectarlo múltiples veces si ya existe
+        if (!document.getElementById('lucidbot-script')) {
+            const script1 = document.createElement("script");
+            script1.id = 'lucidbot-script';
+            script1.src = "https://panel.lucidbot.co/webchat/plugin.js?v=6";
+            script1.async = true;
+            document.body.appendChild(script1);
+
+            script1.onload = () => {
+                // Una vez que el script principal carga, ejecutamos el setup
+                const script2 = document.createElement("script");
+                script2.innerHTML = `ktt10.setup({id:"vVZwO3PUyaF6cQ0tX7BX",accountId:"1793218",color:"#006dff"});`;
+                document.body.appendChild(script2);
+            };
+        }
+    }, []);
+
+    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+    const toggleMenu = (menuId) => setExpandedMenus(prev => ({ ...prev, [menuId]: !prev[menuId] }));
+    const isItemActive = (id) => activeTab === id;
+
+    const renderContent = () => {
+        if (activeTab === 'dashboard') return (
+            <div className="fade-up space-y-6">
+                <div><h1 className="text-3xl font-medium text-slate-800">Bienvenido, {selectedCompany}</h1><p className="text-slate-500 mt-1">Gestiona los servicios contratados</p></div>
+                <div className="bg-white rounded-3xl p-10 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100 flex flex-col md:flex-row items-center gap-12 mt-4">
+                <div className="w-full md:w-1/2 flex justify-center py-4">
+                    <svg width="230" height="190" viewBox="0 0 230 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="35" width="190" height="125" rx="12" fill="#EEF2FF"/>
+                    <path d="M20 85 C 45 85,70 55,70 35 L20 35 Z" fill="#3B82F6"/>
+                    <rect x="55" y="105" width="28" height="38" rx="2" fill="#93C5FD"/>
+                    <rect x="100" y="75" width="28" height="68" rx="2" fill="#60A5FA"/>
+                    <rect x="145" y="115" width="28" height="28" rx="2" fill="#3B82F6"/>
+                    <circle cx="95" cy="155" r="13" fill="#1E3A8A"/>
+                    <path d="M72 185 C72 167,118 167,118 185" fill="#1E3A8A"/>
+                    <circle cx="153" cy="155" r="13" fill="#1E3A8A"/>
+                    <path d="M130 185 C130 167,176 167,176 185" fill="#1E3A8A"/>
+                    <rect x="88" y="46" width="38" height="4" rx="2" fill="#CBD5E1"/>
+                    <rect x="88" y="55" width="56" height="4" rx="2" fill="#CBD5E1"/>
+                    </svg>
+                </div>
+                <div className="w-full md:w-1/2 space-y-4">
+                    <div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Hola, Procesos</h2>
+                    <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-3">SITEC-DSP - BIENVENIDO AL SISTEMA DE GESTIÓN</p>
+                    </div>
+                    <p className="text-slate-600 leading-relaxed text-sm">Pensando en facilitar los procesos internos de las empresas, sus clientes, personal interno y proveedores, hemos creado esta plataforma para que puedas gestionar todos tus procesos en un solo lugar, de manera fácil y rápida.</p>
+                    <p className="text-blue-600 font-medium text-sm">¡Bienvenido a SITEC-DSP, clientes y proveedores!</p>
+                </div>
+                </div>
+            </div>
+        );
+        
+        if (activeTab === 'tickets') return <TicketsView/>;
+        if (activeTab === 'pagos') return <PagosView/>;
+        if (activeTab === 'bancos') return <BancosView empresa={selectedCompany}/>;
+        if (activeTab === 'pyg') return <PyGView setActiveTab={setActiveTab} filtros={pygFiltros} setFiltros={setPygFiltros}/>;
+        if (activeTab === 'pyg_detalle') return <PyGDetalleView setActiveTab={setActiveTab} periodo={pygFiltros.periodo}/>;
+        if (activeTab === 'pyg_cuentas_ingresos') return <PyGCuentasView setActiveTab={setActiveTab} periodo={pygFiltros.periodo} tipo="ingresos"/>;
+        if (activeTab === 'pyg_cuentas_gastos') return <PyGCuentasView setActiveTab={setActiveTab} periodo={pygFiltros.periodo} tipo="gastos"/>;
+        if (activeTab === 'valet_fijos') return <ValetsFijosView/>;
+        if (activeTab === 'liquidaciones_bancos_nomina') return <LiquidacionesBancosNominaView/>;
+        
+        if (activeTab === 'descuento_accesorios') return (
+            <DescuentoAccesoriosView 
+                solicitudes={accSolicitudes} setSolicitudes={setAccSolicitudes} 
+                ordenesCompra={accOrdenesCompra} setOrdenesCompra={setAccOrdenesCompra} 
+                ordenForms={accOrdenForms} setOrdenForms={setAccOrdenForms} 
+            />
+        );
+
+        if (activeTab === 'recaudacion') return (
+            <RecaudacionView 
+                recaudaciones={recaudaciones} 
+                setRecaudaciones={setRecaudaciones} 
+            />
+        );
+
+        const iconMap = {
+            matriculas:<Car size={48}/>, bicicletas:<Bike size={48}/>, ocupacion:<BarChart3 size={48}/>,
+            movilizaciones:<Bus size={48}/>, erol:<FileText size={48}/>, bonos:<Gift size={48}/>,
+            prestamos:<Banknote size={48}/>, celular:<Smartphone size={48}/>, alimentacion:<Utensils size={48}/>,
+            fondos:<PiggyBank size={48}/>, descuentos:<Percent size={48}/>, detalle_distribucion:<ClipboardList size={48}/>,
+            horas:<Clock size={48}/>, presupuestos:<FileText size={48}/>, cajas_chicas:<Wallet size={48}/>,
+            cxc:<Receipt size={48}/>, mant_plantilla:<ClipboardList size={48}/>, mant_tecnicos:<User size={48}/>,
+            mant_parqueaderos:<Building size={48}/>, mant_planificacion:<Calendar size={48}/>,
+            pf_pagos:<CreditCard size={48}/>, pf_boletas:<Receipt size={48}/>, pf_facturas:<FileText size={48}/>,
+            pf_niubiz:<CreditCard size={48}/>, pf_agora:<Store size={48}/>, pf_izipay:<Smartphone size={48}/>,
+            api_meypar:<Server size={48}/>, api_tgw:<Server size={48}/>, api_matricula_error:<AlertTriangle size={48}/>,
+            api_proceso_reverso:<RotateCw size={48}/>, descuento_accesorios:<ShoppingCart size={48}/>,
+            recaudacion:<Wallet size={48}/>, liquidaciones_bancos_nomina:<Landmark size={48}/>
+        };
+        const labelMap = {
+            matriculas:'Gestión de Matriculas', bicicletas:'Gestión de Bicicletas', ocupacion:'Gestión de Ocupación',
+            movilizaciones:'Movilizaciones', erol:'E-Rol', bonos:'Bono eventos', prestamos:'Prestamos',
+            celular:'Descuento celular', alimentacion:'Alimentación', fondos:'Fondos de reserva',
+            descuentos:'Gestión de descuentos', detalle_distribucion:'Detalle de Distribución', horas:'Registro de horas',
+            presupuestos:'Presupuestos', cajas_chicas:'Cajas Chicas', cxc:'Cuentas por Cobrar',
+            mant_plantilla:'Plantilla de Equipos', mant_tecnicos:'Técnicos', mant_parqueaderos:'Mantenimiento Parqueaderos',
+            mant_planificacion:'Planificación y Gestión',
+            pf_pagos:'Gestión de Pagos (Comercial)', pf_boletas:'TCI Boletas', pf_facturas:'TCI Facturas',
+            pf_niubiz:'Niubiz', pf_agora:'Ágora', pf_izipay:'Izipay',
+            api_meypar:'Apis Meypar', api_tgw:'Apis TGW', api_matricula_error:'Apis Matricula Error',
+            api_proceso_reverso:'Apis Proceso Reverso', descuento_accesorios: 'Descuento Accesorios',
+            recaudacion: 'Recaudación', liquidaciones_bancos_nomina: 'Procesamiento a Nominaz'
+        };
+        const icon = iconMap[activeTab];
+        const label = labelMap[activeTab];
+        if (icon && label) return <EmptyState icon={()=>icon} title={label}/>;
+        return null;
+    };
+
+    return (
+        <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-800">
+            <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 text-slate-600 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 flex flex-col`}>
+                <div className="p-8 pb-4 flex items-center justify-start flex-shrink-0 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+                    <div className="flex items-center gap-2 text-orange-500">
+                        <Cpu size={32} strokeWidth={2.5} />
+                        <span className="text-[32px] leading-none font-medium tracking-wide text-[#2173B9] uppercase" style={{fontFamily: 'system-ui, -apple-system, sans-serif'}}>SITEC</span>
+                    </div>
+                </div>
+
+                <div className="px-8 pb-2 pt-2">
+                    <p className="text-[10px] font-bold text-slate-400 tracking-wider">SERVICIOS</p>
+                </div>
+
+                <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto custom-scrollbar">
+                    {/* VISTAS PAGOS Y FACTURACION */}
+                    <div>
+                        <button onClick={() => toggleMenu('pagos_facturacion')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                            <div className="flex items-center gap-3"><Wallet size={20} /><span className="text-sm font-medium">Pagos y Facturación</span></div>
+                            {expandedMenus.pagos_facturacion ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {expandedMenus.pagos_facturacion && (
+                            <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                                <button onClick={() => setActiveTab('pf_pagos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pf_pagos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Pagos
+                                </button>
+                                <button onClick={() => setActiveTab('pf_boletas')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pf_boletas') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    TCI boletas
+                                </button>
+                                <button onClick={() => setActiveTab('pf_facturas')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pf_facturas') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    TCI facturas
+                                </button>
+                                <button onClick={() => setActiveTab('pf_niubiz')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pf_niubiz') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Niubiz
+                                </button>
+                                <button onClick={() => setActiveTab('pf_agora')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pf_agora') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Ágora
+                                </button>
+                                <button onClick={() => setActiveTab('pf_izipay')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pf_izipay') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Izipay
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* OPERACIONES DE PARQUEADEROS */}
+                    <div>
+                        <button onClick={() => toggleMenu('operaciones')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                            <div className="flex items-center gap-3">
+                                <div className="w-[20px] h-[20px] border-2 border-current rounded-full flex items-center justify-center text-[10px] font-bold">P</div>
+                                <span className="text-sm font-medium">Op. de Parqueaderos</span>
+                            </div>
+                            {expandedMenus.operaciones ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {expandedMenus.operaciones && (
+                            <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                                <button onClick={() => setActiveTab('matriculas')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('matriculas') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Gestión de matriculas
+                                </button>
+                                <button onClick={() => setActiveTab('bicicletas')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('bicicletas') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Gestión de bicicletas
+                                </button>
+                                <button onClick={() => setActiveTab('pagos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pagos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Gestion de Pagos
+                                </button>
+                                <button onClick={() => setActiveTab('ocupacion')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('ocupacion') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Gestión de ocupación
+                                </button>
+                                <button onClick={() => setActiveTab('tickets')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('tickets') ? 'text-[#001F3F] font-bold bg-blue-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Gestión de tickets abiertos
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* VISTAS MANTENIMIENTO */}
+                    <div>
+                        <button onClick={() => toggleMenu('mantenimiento')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                            <div className="flex items-center gap-3"><Wrench size={20} /><span className="text-sm font-medium">Mantenimiento</span></div>
+                            {expandedMenus.mantenimiento ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {expandedMenus.mantenimiento && (
+                            <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                                <button onClick={() => setActiveTab('mant_plantilla')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('mant_plantilla') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Plantilla de equipos
+                                </button>
+                                <button onClick={() => setActiveTab('mant_tecnicos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('mant_tecnicos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Técnicos
+                                </button>
+                                <button onClick={() => setActiveTab('mant_parqueaderos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('mant_parqueaderos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Parqueaderos
+                                </button>
+                                <button onClick={() => setActiveTab('mant_planificacion')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('mant_planificacion') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Planificación y gestión
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* NOMINA */}
+                    <div>
+                        <button onClick={() => toggleMenu('nomina')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                            <div className="flex items-center gap-3"><Users size={20} /><span className="text-sm font-medium">Gestion de Personal</span></div>
+                            {expandedMenus.nomina ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {expandedMenus.nomina && (
+                            <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                                <button onClick={() => setActiveTab('movilizaciones')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('movilizaciones') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Movilizaciones
+                                </button>
+                                <button onClick={() => setActiveTab('erol')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('erol') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    E-Rol
+                                </button>
+                                <button onClick={() => setActiveTab('bonos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('bonos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Bono eventos
+                                </button>
+                                <button onClick={() => setActiveTab('prestamos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('prestamos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Prestamos
+                                </button>
+                                <button onClick={() => setActiveTab('celular')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('celular') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Descuento celular
+                                </button>
+                                <button onClick={() => setActiveTab('alimentacion')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('alimentacion') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Alimentación
+                                </button>
+                                <button onClick={() => setActiveTab('fondos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('fondos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Fondos de reserva
+                                </button>
+                                <button onClick={() => setActiveTab('descuentos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('descuentos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Gestión de descuentos
+                                </button>
+                                <button onClick={() => setActiveTab('descuento_accesorios')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('descuento_accesorios') ? 'text-[#001F3F] font-bold bg-blue-50 border border-blue-200/50 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Descuento Accesorios
+                                </button>
+                                <button onClick={() => setActiveTab('horas')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('horas') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Registro de horas
+                                </button>
+                                <button onClick={() => setActiveTab('valet_fijos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('valet_fijos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Valet Fijos
+                                </button>
+                                <button onClick={() => setActiveTab('liquidaciones_bancos_nomina')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('liquidaciones_bancos_nomina') ? 'text-[#001F3F] font-bold bg-blue-50 border border-blue-200/50 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Procesamiento a Nominaz
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* CONTABILIDAD */}
+                    <div>
+                        <button onClick={() => toggleMenu('contabilidad')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                            <div className="flex items-center gap-3"><BarChart3 size={20} /><span className="text-sm font-medium">Contabilidad y Finanzas</span></div>
+                            {expandedMenus.contabilidad ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {expandedMenus.contabilidad && (
+                            <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                                <button onClick={() => setActiveTab('bancos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('bancos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Bancos
+                                </button>
+                                <button onClick={() => setActiveTab('presupuestos')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('presupuestos') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Presupuestos
+                                </button>
+                                <button onClick={() => setActiveTab('cajas_chicas')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('cajas_chicas') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Cajas Chicas
+                                </button>
+                                <button onClick={() => setActiveTab('cxc')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('cxc') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Cuentas por Cobrar
+                                </button>
+                                <button onClick={() => setActiveTab('pyg')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('pyg') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    PyG
+                                </button>
+                                <button onClick={() => setActiveTab('recaudacion')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('recaudacion') ? 'text-[#001F3F] font-bold bg-blue-50 border border-blue-200/50 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Recaudación
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* VISTAS INTEGRACIONES Y APIS */}
+                    <div>
+                        <button onClick={() => toggleMenu('integraciones')} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                            <div className="flex items-center gap-3"><Network size={20} /><span className="text-sm font-medium">Integraciones & APIs</span></div>
+                            {expandedMenus.integraciones ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {expandedMenus.integraciones && (
+                            <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
+                                <button onClick={() => setActiveTab('api_meypar')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('api_meypar') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Apis Meypar
+                                </button>
+                                <button onClick={() => setActiveTab('api_tgw')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('api_tgw') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Apis TGW
+                                </button>
+                                <button onClick={() => setActiveTab('api_matricula_error')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('api_matricula_error') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Apis matricula error
+                                </button>
+                                <button onClick={() => setActiveTab('api_proceso_reverso')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-sm ${isItemActive('api_proceso_reverso') ? 'text-slate-800 font-bold bg-slate-50' : 'text-slate-500 hover:text-slate-800'}`}>
+                                    Apis proceso reverso
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </nav>
+                
+                {/* FOOTER USUARIO */}
+                <div className="p-6 border-t border-slate-100 flex-shrink-0 mt-auto space-y-3">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">PR</div>
+                        <div className="overflow-hidden">
+                            <p className="text-sm font-bold text-slate-800 truncate">Procesos</p>
+                            <p className="text-[11px] text-slate-500 truncate">procesos@urba-park.com</p>
+                        </div>
+                    </div>
+                    <button className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium py-1"><Key size={18} />Llaves de acceso</button>
+                    <button className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium py-1"><LogOut size={18} />Cerrar sesión</button>
+                </div>
+            </aside>
+
+            <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+                <header className="h-20 bg-white border-b border-slate-100 px-8 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-4">
+                        <button onClick={toggleSidebar} className="p-2 hover:bg-slate-100 rounded-lg lg:hidden"><Menu size={24} /></button>
+                        {activeTab !== 'dashboard' && <h2 className="text-lg font-bold text-slate-700 capitalize">{activeTab.replace(/_/g,' ').replace(/^pf /,'').replace(/^mant /,'').replace(/^api /,'').replace('descuento_accesorios', 'Descuento Accesorios').replace('cxc', 'Cuentas por Cobrar')}</h2>}
+                    </div>
+                    <div className="flex items-center gap-4">
+                        {/* SELECCION DE EMPRESA HEADER */}
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm cursor-pointer hover:bg-slate-50 transition-colors">
+                            <ShieldCheck size={16} className="text-emerald-500"/>
+                            <select 
+                                value={selectedCompany} 
+                                onChange={(e) => { setSelectedCompany(e.target.value); setActiveTab('dashboard'); }}
+                                className="bg-transparent outline-none text-sm font-medium text-slate-700 cursor-pointer min-w-[80px]"
+                            >
+                                <option value="Urbapark">Urbapark</option>
+                                <option value="Real Plaza">Real Plaza</option>
+                                <option value="Apparca">Apparca</option>
+                                <option value="Recreo">Recreo</option>
+                            </select>
+                        </div>
+
+                        <div className="w-9 h-9 bg-slate-200 rounded-full"></div>
+                    </div>
+                </header>
+
+                <div className="flex-1 overflow-y-auto bg-slate-50/50">
+                    <div className="max-w-7xl mx-auto w-full p-8">
+                        {renderContent()}
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

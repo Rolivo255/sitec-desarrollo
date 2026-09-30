@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key } from 'lucide-react';
+import { Menu, ChevronDown, ChevronRight, LogOut, Cpu, Wallet, Wrench, Users, BarChart3, Network, Key, Loader2 } from 'lucide-react';
 import { Placeholder } from "./components/commons/Placeholder";
 import LucidBotWebchat from "./components/LucidBotWebchat";
+import LoginView from "./components/auth/LoginView";
+import { useAuth } from "./contexts/useAuth";
 
 const TicketsView = lazy(() => import("./components/operaciones/TicketsView"));
 const PagosView = lazy(() => import("./components/pagos/PagosView"));
@@ -63,6 +65,7 @@ interface MenuState {
 }
 
 function App() {
+  const { session, isLoading, isPasswordRecovery, signOut } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
     return window.innerWidth >= 1024;
@@ -92,6 +95,18 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-[#2173B9]" />
+      </div>
+    );
+  }
+
+  if (!session || isPasswordRecovery) {
+    return <LoginView />;
+  }
 
   const isItemActive = (id: string) => activeTab === id;
   const esTabDescuentos = activeTab === 'descuentos';
@@ -302,14 +317,15 @@ function App() {
         {/* FOOTER USUARIO */}
         <div className="p-6 border-t border-slate-100 flex-shrink-0 mt-auto space-y-3">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">PR</div>
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+              {(session.user.email || '??').slice(0, 2).toUpperCase()}
+            </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-bold text-slate-700 truncate">Procesos</p>
-              <p className="text-xs text-slate-500 truncate">procesos@urba-park.com</p>
+              <p className="text-sm font-bold text-slate-700 truncate">{session.user.email}</p>
             </div>
           </div>
           <button className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium"><Key size={18} />Llaves de acceso</button>
-          <button className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium"><LogOut size={18} />Cerrar sesión</button>
+          <button onClick={() => void signOut()} className="w-full flex items-center gap-3 text-slate-500 hover:text-slate-800 text-sm font-medium"><LogOut size={18} />Cerrar sesión</button>
         </div>
       </aside>
 

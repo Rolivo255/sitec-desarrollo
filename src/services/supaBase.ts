@@ -1,5 +1,4 @@
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xaglgjnqbwyissbbukff.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_z4WLplTN-tI1WAGdxTn79g_BFHaT1As';
+import { SUPABASE_URL as supabaseUrl, SUPABASE_ANON_KEY as supabaseKey } from './supabaseConfig';
 
 export interface SupabaseUploadInput {
   bucket: string;
