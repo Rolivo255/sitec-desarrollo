@@ -10,6 +10,7 @@ export const N8N_API_CATALOG = {
   descuentosVariosSitec: '/api/n8n/webhook/descuentos/varios/sitec',
   reporteRecaudacionDetalle: '/api/n8n/webhook/reporte/recaudacion/detalle',
   reporteTransferenciaDetalle: '/api/n8n/webhook/reporte/transferencia/detalle',
+  plantillaProveedorProveedores: '/api/n8n-desarrollo/webhook/proyectos/plantilla/proveedores',
 } as const;
 
 interface N8nOrdenCompraPayload {
@@ -311,6 +312,49 @@ export const getReporteTransferenciaDetalle = async (
   fechaReporte: string
 ): Promise<ReporteRecaudacionDetalleItem[]> =>
   postReporteDetalle<ReporteRecaudacionDetalleItem>(N8N_API_CATALOG.reporteTransferenciaDetalle, trOtro, fechaReporte);
+
+export const getProveedoresPlantilla = async (): Promise<string[]> => {
+  const response = await fetchGetWithRetry(N8N_API_CATALOG.plantillaProveedorProveedores);
+  const raw = await response.text();
+
+  let data: unknown = null;
+  if (raw.trim()) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (data === null) {
+    // El cuerpo no es JSON valido: casi siempre es la pagina HTML de Vite/Vercel
+    // cuando el proxy /api/n8n-desarrollo no esta activo (falta reiniciar el
+    // servidor tras agregarlo a vite.config.ts), o un error real del servicio.
+    // Se incluye un fragmento del cuerpo crudo para poder diagnosticarlo.
+    const fragmento = raw.trim().slice(0, 150).replace(/\s+/g, ' ');
+    throw new Error(
+      `Respuesta no valida del servicio de proveedores (HTTP ${response.status}). ` +
+      (fragmento ? `Cuerpo recibido: "${fragmento}${raw.length > 150 ? '...' : ''}"` : 'El cuerpo llego vacio.')
+    );
+  }
+
+  if (!response.ok) {
+    const posibleError = data && typeof data === 'object' && !Array.isArray(data)
+      ? (data as { error?: unknown; message?: unknown }).error ?? (data as { error?: unknown; message?: unknown }).message
+      : undefined;
+    throw new Error(posibleError ? String(posibleError) : `Error ${response.status} al obtener los proveedores`);
+  }
+
+  const lista = Array.isArray(data) ? data : [data];
+  // La API devuelve un objeto con claves "proveedor1", "proveedor2", etc.
+  // en vez de un array de strings; se toman todos sus valores tal cual vengan.
+  const primerItem = lista.find((item) => item && typeof item === 'object') as Record<string, unknown> | undefined;
+  if (!primerItem) return [];
+
+  return Object.values(primerItem)
+    .map((valor) => String(valor ?? '').trim())
+    .filter(Boolean);
+};
 
 export const extraerOrdenCompraDesdeImagenN8n = async (imageUrl: string): Promise<N8nOrdenCompraExtract> => {
   const payloadRaw = await n8nPostDirect<N8nOrdenCompraPayload | N8nOrdenCompraPayload[]>({

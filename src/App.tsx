@@ -79,7 +79,7 @@ function App() {
   const [expandedMenus, setExpandedMenus] = useState<MenuState>({
     operaciones: false,
     contabilidad: false,
-    nomina: true,
+    nomina: false,
     desarrollo: false,
     pagos_facturacion: false,
     integraciones: false,

@@ -20,6 +20,7 @@ import {
     User,
     X,
 } from 'lucide-react';
+import { getProveedoresPlantilla } from '../../services/n8nApi';
 
 interface Categoria {
     id: number;
@@ -37,6 +38,7 @@ interface Equipo {
     componentes_count: number;
     costo_total: string | number;
     moneda: string | null;
+    utilidad_interna: string | number | null;
 }
 
 interface Componente {
@@ -71,6 +73,9 @@ export default function PlantillaProveedorView() {
     const [newCategoriaProveedor, setNewCategoriaProveedor] = useState('');
     const [catError, setCatError] = useState('');
     const [isSavingCategoria, setIsSavingCategoria] = useState(false);
+    const [proveedoresApi, setProveedoresApi] = useState<string[]>([]);
+    const [isLoadingProveedoresApi, setIsLoadingProveedoresApi] = useState(false);
+    const [proveedoresApiError, setProveedoresApiError] = useState('');
 
     // Drawer: Crear equipo
     const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
@@ -84,6 +89,10 @@ export default function PlantillaProveedorView() {
     const [detalleEquipo, setDetalleEquipo] = useState<Equipo | null>(null);
     const [detalleComponentes, setDetalleComponentes] = useState<Componente[]>([]);
     const [isLoadingDetalle, setIsLoadingDetalle] = useState(false);
+    const [utilidadInternaActiva, setUtilidadInternaActiva] = useState(false);
+    const [utilidadInternaValor, setUtilidadInternaValor] = useState('');
+    const [isSavingUtilidad, setIsSavingUtilidad] = useState(false);
+    const [utilidadError, setUtilidadError] = useState('');
 
     // Modal: Añadir componente
     const [isAddCompModalOpen, setIsAddCompModalOpen] = useState(false);
@@ -142,6 +151,17 @@ export default function PlantillaProveedorView() {
         setNewCategoriaProveedor('');
         setCatError('');
         setIsCatDrawerOpen(true);
+
+        if (proveedoresApi.length === 0) {
+            setIsLoadingProveedoresApi(true);
+            setProveedoresApiError('');
+            getProveedoresPlantilla()
+                .then(setProveedoresApi)
+                .catch((error: unknown) => {
+                    setProveedoresApiError(error instanceof Error ? error.message : 'No se pudo cargar la lista de proveedores.');
+                })
+                .finally(() => setIsLoadingProveedoresApi(false));
+        }
     };
 
     const handleEditCategoria = (cat: Categoria) => {
@@ -232,6 +252,10 @@ export default function PlantillaProveedorView() {
     const handleOpenDetail = async (equipo: Equipo) => {
         setDetalleEquipo(equipo);
         setDetalleComponentes([]);
+        const utilidadExistente = numeroOCero(equipo.utilidad_interna);
+        setUtilidadInternaActiva(utilidadExistente > 0);
+        setUtilidadInternaValor(utilidadExistente > 0 ? String(utilidadExistente) : '');
+        setUtilidadError('');
         setIsDetailDrawerOpen(true);
         setIsLoadingDetalle(true);
         try {
@@ -246,10 +270,54 @@ export default function PlantillaProveedorView() {
         }
     };
 
+    const guardarUtilidadInterna = async (valor: number) => {
+        if (!detalleEquipo) return;
+        setIsSavingUtilidad(true);
+        setUtilidadError('');
+        try {
+            const response = await fetch(`${API_BASE}/equipos/${detalleEquipo.id}/utilidad-interna`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ utilidadInterna: valor }),
+            });
+            const payload = await response.json().catch(() => null) as { equipo?: { id: number; utilidad_interna: number | string }; error?: string } | null;
+            if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
+            const nuevoValor = payload!.equipo!.utilidad_interna;
+            const equipoActualizado: Equipo = { ...detalleEquipo, utilidad_interna: nuevoValor };
+            setDetalleEquipo(equipoActualizado);
+            setEquipos(prev => prev.map(eq => eq.id === equipoActualizado.id ? equipoActualizado : eq));
+        } catch (error) {
+            setUtilidadError(error instanceof Error ? error.message : 'No se pudo guardar la utilidad interna.');
+        } finally {
+            setIsSavingUtilidad(false);
+        }
+    };
+
+    const handleToggleUtilidadInterna = (activar: boolean) => {
+        setUtilidadInternaActiva(activar);
+        setUtilidadError('');
+        if (!activar) {
+            setUtilidadInternaValor('');
+            void guardarUtilidadInterna(0);
+        }
+    };
+
+    const handleBlurUtilidadInterna = () => {
+        const valor = Number(utilidadInternaValor || 0);
+        if (!Number.isFinite(valor) || valor < 0 || valor > 100) {
+            setUtilidadError('Ingrese un porcentaje válido entre 0 y 100.');
+            return;
+        }
+        void guardarUtilidadInterna(valor);
+    };
+
     const cerrarDetalle = () => {
         setIsDetailDrawerOpen(false);
         setDetalleEquipo(null);
         setDetalleComponentes([]);
+        setUtilidadInternaActiva(false);
+        setUtilidadInternaValor('');
+        setUtilidadError('');
     };
 
     const abrirModalComponente = () => {
@@ -339,11 +407,11 @@ export default function PlantillaProveedorView() {
                     </div>
                 </div>
                 <button
-                    onClick={abrirDrawerCrearEquipo}
-                    className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[100px] shadow-sm"
+                    onClick={abrirDrawerCategorias}
+                    className="px-5 py-2.5 bg-white border border-blue-400 hover:bg-blue-50 text-blue-600 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[120px] shadow-sm"
                 >
-                    <Plus size={16} className="text-orange-500 mb-1" />
-                    Crear Grupo
+                    <ClipboardList size={18} className="mb-1" />
+                    Gestionar Categoría
                 </button>
             </div>
 
@@ -382,11 +450,11 @@ export default function PlantillaProveedorView() {
                     </div>
 
                     <button
-                        onClick={abrirDrawerCategorias}
-                        className="px-5 py-2.5 bg-white border border-blue-400 hover:bg-blue-50 text-blue-600 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[120px] shadow-sm"
+                        onClick={abrirDrawerCrearEquipo}
+                        className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[13px] font-medium transition-all flex flex-col items-center justify-center min-w-[100px] shadow-sm"
                     >
-                        <ClipboardList size={18} className="mb-1" />
-                        Gestionar Categoría
+                        <Plus size={16} className="text-orange-500 mb-1" />
+                        Crear Grupo
                     </button>
                 </div>
 
@@ -498,13 +566,22 @@ export default function PlantillaProveedorView() {
                                     </div>
                                     <div className="pt-2 border-t border-slate-100">
                                         <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Proveedor</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Nombre del proveedor"
-                                            value={newCategoriaProveedor}
-                                            onChange={(e) => setNewCategoriaProveedor(e.target.value)}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded text-[12px] text-slate-600 outline-none focus:border-[#0EA5E9] bg-slate-50"
-                                        />
+                                        {isLoadingProveedoresApi ? (
+                                            <div className="flex items-center gap-2 text-[12px] text-slate-400 px-3 py-2">
+                                                <Loader2 size={14} className="animate-spin" /> Cargando proveedores...
+                                            </div>
+                                        ) : proveedoresApiError ? (
+                                            <p className="text-[11px] text-red-600 px-1">{proveedoresApiError}</p>
+                                        ) : (
+                                            <select
+                                                value={newCategoriaProveedor}
+                                                onChange={(e) => setNewCategoriaProveedor(e.target.value)}
+                                                className="w-full appearance-none px-3 py-2 border border-slate-200 rounded text-[12px] text-slate-600 outline-none focus:border-[#0EA5E9] bg-slate-50 cursor-pointer"
+                                            >
+                                                <option value="" disabled>Seleccione un proveedor...</option>
+                                                {proveedoresApi.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -619,6 +696,42 @@ export default function PlantillaProveedorView() {
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5"><AlertCircle size={14} /> Calculado automáticamente según los componentes.</p>
                                 </div>
+                            </div>
+
+                            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
+                                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={utilidadInternaActiva}
+                                        onChange={(e) => handleToggleUtilidadInterna(e.target.checked)}
+                                        disabled={isSavingUtilidad}
+                                        className="w-4 h-4 accent-[#2173B9] cursor-pointer"
+                                    />
+                                    <span className="text-[13px] font-bold text-slate-700">Utilidad Interna</span>
+                                    {isSavingUtilidad && <Loader2 size={14} className="animate-spin text-slate-400" />}
+                                </label>
+
+                                {utilidadInternaActiva && (
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step="0.01"
+                                            placeholder="Ej: 10"
+                                            value={utilidadInternaValor}
+                                            onChange={(e) => setUtilidadInternaValor(e.target.value)}
+                                            onBlur={handleBlurUtilidadInterna}
+                                            disabled={isSavingUtilidad}
+                                            className="w-28 px-3 py-2 border border-slate-300 rounded-lg text-[13px] font-bold text-slate-800 outline-none focus:border-blue-500 bg-white disabled:opacity-60"
+                                        />
+                                        <span className="text-[13px] text-slate-500">%</span>
+                                    </div>
+                                )}
+
+                                {utilidadError && (
+                                    <p className="text-[11px] text-red-600 mt-2 flex items-center gap-1.5"><AlertCircle size={12} /> {utilidadError}</p>
+                                )}
                             </div>
 
                             <hr className="border-slate-100" />

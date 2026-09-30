@@ -18,8 +18,38 @@ const LUCIDBOT_CONFIG = {
 const LUCIDBOT_POLL_INTERVAL_MS = 200;
 const LUCIDBOT_POLL_MAX_ATTEMPTS = 50; // ~10s de espera tras cargar el script
 
+// El widget de LucidBot se inyecta directo en <body> con su propio z-index
+// (los widgets de chat suelen usar valores muy altos para flotar sobre
+// cualquier pagina host). Nuestros drawers/modales usan z-index entre 100 y
+// 200; forzamos el widget a un valor intermedio: por encima del sidebar/header
+// de la app (z-40/z-30) para uso normal, pero por debajo de cualquier drawer
+// o modal para que sus botones nunca queden bloqueados por el webchat.
+const LUCIDBOT_FORCED_Z_INDEX = '90';
+
 // Modulo-level: sobrevive a remounts (p.ej. React.StrictMode) para no llamar setup() dos veces.
 let lucidBotSetupDone = false;
+let lucidBotObserverIniciado = false;
+
+const forzarZIndexBajo = (node: Node) => {
+  if (!(node instanceof HTMLElement)) return;
+  if (node.id === 'root' || node.tagName === 'SCRIPT') return;
+  node.style.setProperty('z-index', LUCIDBOT_FORCED_Z_INDEX, 'important');
+};
+
+const observarNuevosNodosDeLucidBot = () => {
+  if (lucidBotObserverIniciado) return;
+  lucidBotObserverIniciado = true;
+
+  // Por si el widget ya inyecto algo en <body> antes de que este observer arrancara.
+  Array.from(document.body.children).forEach(forzarZIndexBajo);
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach(forzarZIndexBajo);
+    });
+  });
+  observer.observe(document.body, { childList: true });
+};
 
 /**
  * Inyecta el Webchat oficial de LucidBot (https://panel.lucidbot.co) una sola vez
@@ -28,6 +58,8 @@ let lucidBotSetupDone = false;
  */
 const LucidBotWebchat = () => {
   useEffect(() => {
+    observarNuevosNodosDeLucidBot();
+
     if (lucidBotSetupDone) return;
 
     let pollId: number | undefined;

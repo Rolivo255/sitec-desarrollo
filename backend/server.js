@@ -3663,9 +3663,12 @@ const ensurePlantillaProveedorTables = async () => {
       codigo VARCHAR(30) NOT NULL,
       categoria_id BIGINT NOT NULL REFERENCES "Plantilla_Proveedor_Categorias"(id) ON DELETE RESTRICT,
       nombre_equipo VARCHAR(150) NOT NULL,
+      utilidad_interna NUMERIC(6,2) NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  await pool.query(`ALTER TABLE "Plantilla_Proveedor" ADD COLUMN IF NOT EXISTS utilidad_interna NUMERIC(6,2) NOT NULL DEFAULT 0`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS "Plantilla_Proveedor_Componentes" (
@@ -3781,7 +3784,7 @@ app.get('/api/proyectos/plantilla-proveedor/equipos', async (_req, res) => {
     await ensurePlantillaProveedorTables();
     const result = await pool.query(`
       SELECT
-        e.id, e.codigo, e.nombre_equipo, e.created_at,
+        e.id, e.codigo, e.nombre_equipo, e.utilidad_interna, e.created_at,
         c.id AS categoria_id, c.nombre AS categoria_nombre, c.proveedor,
         COUNT(comp.id)::int AS componentes_count,
         COALESCE(SUM(comp.costo), 0) AS costo_total,
@@ -3789,7 +3792,7 @@ app.get('/api/proyectos/plantilla-proveedor/equipos', async (_req, res) => {
       FROM "Plantilla_Proveedor" e
       JOIN "Plantilla_Proveedor_Categorias" c ON c.id = e.categoria_id
       LEFT JOIN "Plantilla_Proveedor_Componentes" comp ON comp.equipo_id = e.id
-      GROUP BY e.id, e.codigo, e.nombre_equipo, e.created_at, c.id, c.nombre, c.proveedor
+      GROUP BY e.id, e.codigo, e.nombre_equipo, e.utilidad_interna, e.created_at, c.id, c.nombre, c.proveedor
       ORDER BY e.created_at DESC
     `);
     res.status(200).json({ equipos: result.rows });
@@ -3824,7 +3827,7 @@ app.post('/api/proyectos/plantilla-proveedor/equipos', async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO "Plantilla_Proveedor" (codigo, categoria_id, nombre_equipo) VALUES ($1, $2, $3)
-       RETURNING id, codigo, nombre_equipo, categoria_id, created_at`,
+       RETURNING id, codigo, nombre_equipo, categoria_id, utilidad_interna, created_at`,
       [codigo, categoriaId, nombreEquipo]
     );
 
@@ -3856,7 +3859,7 @@ app.get('/api/proyectos/plantilla-proveedor/equipos/:id', async (req, res) => {
     await ensurePlantillaProveedorTables();
 
     const equipo = await pool.query(`
-      SELECT e.id, e.codigo, e.nombre_equipo, e.created_at,
+      SELECT e.id, e.codigo, e.nombre_equipo, e.utilidad_interna, e.created_at,
              c.id AS categoria_id, c.nombre AS categoria_nombre, c.proveedor
       FROM "Plantilla_Proveedor" e
       JOIN "Plantilla_Proveedor_Categorias" c ON c.id = e.categoria_id
@@ -3877,6 +3880,36 @@ app.get('/api/proyectos/plantilla-proveedor/equipos/:id', async (req, res) => {
   } catch (error) {
     console.error('[GET /api/proyectos/plantilla-proveedor/equipos/:id] Error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'No se pudo obtener el detalle del equipo', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.patch('/api/proyectos/plantilla-proveedor/equipos/:id/utilidad-interna', async (req, res) => {
+  const id = Number(req.params.id);
+  const utilidadInterna = Number(req.body?.utilidadInterna ?? 0);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+  if (!Number.isFinite(utilidadInterna) || utilidadInterna < 0 || utilidadInterna > 100) {
+    res.status(400).json({ error: 'La utilidad interna debe ser un porcentaje entre 0 y 100' });
+    return;
+  }
+
+  try {
+    await ensurePlantillaProveedorTables();
+    const result = await pool.query(
+      `UPDATE "Plantilla_Proveedor" SET utilidad_interna = $2 WHERE id = $1 RETURNING id, utilidad_interna`,
+      [id, utilidadInterna]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Equipo no encontrado' });
+      return;
+    }
+    res.status(200).json({ equipo: result.rows[0] });
+  } catch (error) {
+    console.error('[PATCH /api/proyectos/plantilla-proveedor/equipos/:id/utilidad-interna] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo guardar la utilidad interna', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
