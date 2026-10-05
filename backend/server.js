@@ -4020,7 +4020,6 @@ const ensureInversionesProyectosTable = async () => {
     CREATE TABLE IF NOT EXISTS "Inversiones_Proyectos" (
       id BIGSERIAL PRIMARY KEY,
       nombre VARCHAR(200) NOT NULL,
-      moneda VARCHAR(3) NOT NULL,
       conversion NUMERIC(14,4),
       desaduanizacion NUMERIC(14,2),
       utilidad NUMERIC(6,2),
@@ -4028,13 +4027,105 @@ const ensureInversionesProyectosTable = async () => {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  await pool.query(`ALTER TABLE "Inversiones_Proyectos" DROP COLUMN IF EXISTS moneda`);
+  await pool.query(`ALTER TABLE "Inversiones_Proyectos" ADD COLUMN IF NOT EXISTS interes NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE "Inversiones_Proyectos" ADD COLUMN IF NOT EXISTS anios_operacion INTEGER`);
+
+  // Columna "amortizacion" renombrada a "interes": migra datos existentes y la elimina
+  const columnaAmortizacion = await pool.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'Inversiones_Proyectos' AND column_name = 'amortizacion'
+  `);
+  if (columnaAmortizacion.rowCount > 0) {
+    await pool.query(`UPDATE "Inversiones_Proyectos" SET interes = amortizacion WHERE interes IS NULL`);
+    await pool.query(`ALTER TABLE "Inversiones_Proyectos" DROP COLUMN amortizacion`);
+  }
+};
+
+// ─────────── Plantilla_Urbapark: consolidado generado al crear una inversion ───────────
+// Toma el catalogo completo de Plantilla_Proveedor (equipos + sus componentes) y lo
+// combina con los valores financieros (conversion, desaduanizacion, utilidad) de la
+// inversion recien creada, calculando una fila consolidada por cada equipo.
+const ensurePlantillaUrbaparkTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Plantilla_Urbapark" (
+      id BIGSERIAL PRIMARY KEY,
+      nombre VARCHAR(200) NOT NULL,
+      codigo VARCHAR(30) NOT NULL,
+      proveedor VARCHAR(100) NOT NULL,
+      categoria VARCHAR(100) NOT NULL,
+      descripcion VARCHAR(150) NOT NULL,
+      costo_proveedor NUMERIC(14,2) NOT NULL DEFAULT 0,
+      costo_proveedor_dolares NUMERIC(14,2) NOT NULL DEFAULT 0,
+      desaduanizacion NUMERIC(14,2) NOT NULL DEFAULT 0,
+      utilidad_interna NUMERIC(6,2) NOT NULL DEFAULT 0,
+      utilidad NUMERIC(6,2) NOT NULL DEFAULT 0,
+      costo_urbapark NUMERIC(14,2) NOT NULL DEFAULT 0,
+      costo_urbapark_referencia NUMERIC(14,2) NOT NULL DEFAULT 0,
+      precio_venta_inversion NUMERIC(14,2) NOT NULL DEFAULT 0,
+      inversion_id BIGINT REFERENCES "Inversiones_Proyectos"(id) ON DELETE CASCADE,
+      equipo_id BIGINT REFERENCES "Plantilla_Proveedor"(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+};
+
+// Genera (dentro de la transaccion recibida en `client`) una fila de Plantilla_Urbapark
+// por cada equipo de Plantilla_Proveedor, usando los valores de la inversion dada.
+const generarPlantillaUrbaparkParaInversion = async (client, inversion) => {
+  const equiposResult = await client.query(`
+    SELECT
+      e.id AS equipo_id, e.codigo, e.nombre_equipo, e.utilidad_interna,
+      c.nombre AS categoria_nombre, c.proveedor,
+      COALESCE(SUM(comp.costo), 0) AS costo_proveedor,
+      MIN(comp.moneda) AS moneda
+    FROM "Plantilla_Proveedor" e
+    JOIN "Plantilla_Proveedor_Categorias" c ON c.id = e.categoria_id
+    LEFT JOIN "Plantilla_Proveedor_Componentes" comp ON comp.equipo_id = e.id
+    GROUP BY e.id, e.codigo, e.nombre_equipo, e.utilidad_interna, c.nombre, c.proveedor
+  `);
+
+  const conversion = Number(inversion.conversion || 0);
+  // A diferencia de utilidad/utilidad_interna, desaduanizacion es un multiplicador
+  // directo (ej. 1.2 o 0.4), no un porcentaje: no se divide entre 100.
+  const desaduanizacionMultiplicador = Number(inversion.desaduanizacion || 0);
+  const utilidadInversionTasa = Number(inversion.utilidad || 0) / 100;
+
+  for (const eq of equiposResult.rows) {
+    const costoProveedor = Number(eq.costo_proveedor || 0);
+    const costoProveedorDolares = eq.moneda === 'EUR' ? costoProveedor * conversion : costoProveedor;
+    const desaduanizacionCol = costoProveedorDolares * desaduanizacionMultiplicador;
+    const utilidadInternaCol = Number(eq.utilidad_interna || 0);
+    const costoUrbapark = desaduanizacionCol;
+    const costoUrbaparkReferencia = utilidadInternaCol > 0
+      ? costoUrbapark * (utilidadInternaCol / 100)
+      : costoUrbapark;
+    // precio_venta_inversion = costo_urbapark_referencia + (costo_urbapark_referencia * utilidad%)
+    const precioVentaInversion = costoUrbaparkReferencia + (costoUrbaparkReferencia * utilidadInversionTasa);
+
+    await client.query(
+      `INSERT INTO "Plantilla_Urbapark" (
+         nombre, codigo, proveedor, categoria, descripcion,
+         costo_proveedor, costo_proveedor_dolares, desaduanizacion,
+         utilidad_interna, utilidad, costo_urbapark, costo_urbapark_referencia,
+         precio_venta_inversion, inversion_id, equipo_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [
+        inversion.nombre, eq.codigo, eq.proveedor, eq.categoria_nombre, eq.nombre_equipo,
+        costoProveedor, costoProveedorDolares, desaduanizacionCol,
+        utilidadInternaCol, Number(inversion.utilidad || 0), costoUrbapark, costoUrbaparkReferencia,
+        precioVentaInversion, inversion.id, eq.equipo_id,
+      ]
+    );
+  }
 };
 
 app.get('/api/proyectos/inversiones', async (_req, res) => {
   try {
     await ensureInversionesProyectosTable();
     const result = await pool.query(
-      `SELECT id, nombre, moneda, conversion, desaduanizacion, utilidad, estado, created_at
+      `SELECT id, nombre, conversion, desaduanizacion, utilidad, interes, anios_operacion, estado, created_at
        FROM "Inversiones_Proyectos" ORDER BY created_at DESC`
     );
     res.status(200).json({ inversiones: result.rows });
@@ -4046,32 +4137,273 @@ app.get('/api/proyectos/inversiones', async (_req, res) => {
 
 app.post('/api/proyectos/inversiones', async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim();
-  const moneda = String(req.body?.moneda || '').trim().toUpperCase();
   const conversion = req.body?.conversion !== undefined && req.body?.conversion !== '' ? Number(req.body.conversion) : null;
   const desaduanizacion = req.body?.desaduanizacion !== undefined && req.body?.desaduanizacion !== '' ? Number(req.body.desaduanizacion) : null;
   const utilidad = req.body?.utilidad !== undefined && req.body?.utilidad !== '' ? Number(req.body.utilidad) : null;
+  const interes = req.body?.interes !== undefined && req.body?.interes !== '' ? Number(req.body.interes) : null;
+  const aniosOperacion = req.body?.aniosOperacion !== undefined && req.body?.aniosOperacion !== '' ? Number(req.body.aniosOperacion) : null;
 
   if (!nombre) {
     res.status(400).json({ error: 'El campo nombre es requerido' });
     return;
   }
-  if (!moneda) {
-    res.status(400).json({ error: 'El campo moneda es requerido' });
+
+  try {
+    await ensureInversionesProyectosTable();
+    await ensurePlantillaUrbaparkTable();
+
+    const client = await pool.connect();
+    let inversionCreada;
+    try {
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        `INSERT INTO "Inversiones_Proyectos" (nombre, conversion, desaduanizacion, utilidad, interes, anios_operacion, estado)
+         VALUES ($1, $2, $3, $4, $5, $6, 'Creado')
+         RETURNING id, nombre, conversion, desaduanizacion, utilidad, interes, anios_operacion, estado, created_at`,
+        [nombre, conversion, desaduanizacion, utilidad, interes, aniosOperacion]
+      );
+      inversionCreada = result.rows[0];
+
+      await generarPlantillaUrbaparkParaInversion(client, inversionCreada);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    res.status(201).json({ inversion: inversionCreada });
+  } catch (error) {
+    console.error('[POST /api/proyectos/inversiones] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo crear la inversión', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Lista el consolidado de Plantilla_Urbapark generado para una inversion especifica,
+// usado para poblar los selectores de Categoria -> Equipo al agregar items.
+app.get('/api/proyectos/plantilla-urbapark', async (req, res) => {
+  const inversionId = Number(req.query.inversionId);
+
+  if (!Number.isInteger(inversionId) || inversionId <= 0) {
+    res.status(400).json({ error: 'El parámetro inversionId es requerido' });
     return;
   }
 
   try {
-    await ensureInversionesProyectosTable();
+    await ensurePlantillaUrbaparkTable();
     const result = await pool.query(
-      `INSERT INTO "Inversiones_Proyectos" (nombre, moneda, conversion, desaduanizacion, utilidad, estado)
-       VALUES ($1, $2, $3, $4, $5, 'Creado')
-       RETURNING id, nombre, moneda, conversion, desaduanizacion, utilidad, estado, created_at`,
-      [nombre, moneda, conversion, desaduanizacion, utilidad]
+      `SELECT id, codigo, proveedor, categoria, descripcion, equipo_id,
+              costo_proveedor, costo_proveedor_dolares, desaduanizacion,
+              utilidad_interna, utilidad, costo_urbapark, costo_urbapark_referencia,
+              precio_venta_inversion
+       FROM "Plantilla_Urbapark" WHERE inversion_id = $1 ORDER BY categoria, descripcion`,
+      [inversionId]
     );
-    res.status(201).json({ inversion: result.rows[0] });
+    res.status(200).json({ items: result.rows });
   } catch (error) {
-    console.error('[POST /api/proyectos/inversiones] Error:', error instanceof Error ? error.message : String(error));
-    res.status(500).json({ error: 'No se pudo crear la inversión', details: error instanceof Error ? error.message : 'Unknown error' });
+    console.error('[GET /api/proyectos/plantilla-urbapark] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo obtener el consolidado de Plantilla Urbapark', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+/* ─────────────────────── PROYECTOS: ITEMS DE INVERSIÓN ─────────────────────── */
+// Items que el usuario arma dentro de "Detalle de Inversión" (boton "+ Nueva
+// Categoria"), eligiendo un equipo ya calculado en Plantilla_Urbapark para esa
+// inversion. El precio unitario se congela desde precio_venta_inversion al
+// momento de agregar el item (no se recalcula si Plantilla_Urbapark cambia despues).
+const ensureInversionesProyectosItemsTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Inversiones_Proyectos_Items" (
+      id BIGSERIAL PRIMARY KEY,
+      proyecto VARCHAR(200) NOT NULL,
+      conversion NUMERIC(14,4) NOT NULL DEFAULT 0,
+      desaduanizacion NUMERIC(14,2) NOT NULL DEFAULT 0,
+      utilidad NUMERIC(6,2) NOT NULL DEFAULT 0,
+      utilidad_interna NUMERIC(6,2) NOT NULL DEFAULT 0,
+      items VARCHAR(30) NOT NULL,
+      descripcion VARCHAR(150) NOT NULL,
+      precio_unit NUMERIC(14,2) NOT NULL DEFAULT 0,
+      cantidad NUMERIC(14,2) NOT NULL DEFAULT 0,
+      precio_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+      observacion VARCHAR(255),
+      inversion_id BIGINT NOT NULL REFERENCES "Inversiones_Proyectos"(id) ON DELETE CASCADE,
+      plantilla_urbapark_id BIGINT REFERENCES "Plantilla_Urbapark"(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+};
+
+app.get('/api/proyectos/inversiones/:id/items', async (req, res) => {
+  const inversionId = Number(req.params.id);
+
+  if (!Number.isInteger(inversionId) || inversionId <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensureInversionesProyectosItemsTable();
+    const result = await pool.query(
+      `SELECT id, proyecto, conversion, desaduanizacion, utilidad, utilidad_interna,
+              items, descripcion, precio_unit, cantidad, precio_total, observacion, created_at
+       FROM "Inversiones_Proyectos_Items" WHERE inversion_id = $1 ORDER BY created_at ASC`,
+      [inversionId]
+    );
+    res.status(200).json({ items: result.rows });
+  } catch (error) {
+    console.error('[GET /api/proyectos/inversiones/:id/items] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron obtener los items de la inversión', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/proyectos/inversiones/:id/items', async (req, res) => {
+  const inversionId = Number(req.params.id);
+  const codigo = String(req.body?.codigo || '').trim();
+  const cantidad = Number(req.body?.cantidad);
+  const observacion = req.body?.observacion !== undefined ? String(req.body.observacion).trim() : '';
+
+  if (!Number.isInteger(inversionId) || inversionId <= 0 || !codigo) {
+    res.status(400).json({ error: 'Los campos inversionId y codigo son requeridos' });
+    return;
+  }
+  if (!Number.isFinite(cantidad) || cantidad <= 0) {
+    res.status(400).json({ error: 'La cantidad debe ser un número mayor a 0' });
+    return;
+  }
+
+  try {
+    await ensureInversionesProyectosItemsTable();
+
+    const inversionResult = await pool.query(
+      `SELECT id, nombre, conversion, desaduanizacion, utilidad FROM "Inversiones_Proyectos" WHERE id = $1`,
+      [inversionId]
+    );
+    if (inversionResult.rowCount === 0) {
+      res.status(404).json({ error: 'Inversión no encontrada' });
+      return;
+    }
+    const inversion = inversionResult.rows[0];
+
+    const urbaparkResult = await pool.query(
+      `SELECT id, descripcion, precio_venta_inversion, utilidad_interna
+       FROM "Plantilla_Urbapark" WHERE inversion_id = $1 AND codigo = $2`,
+      [inversionId, codigo]
+    );
+    if (urbaparkResult.rowCount === 0) {
+      res.status(404).json({ error: 'No se encontró ese código en el consolidado de esta inversión' });
+      return;
+    }
+    const urbapark = urbaparkResult.rows[0];
+
+    const precioUnit = Number(urbapark.precio_venta_inversion || 0);
+    const precioTotal = Number((precioUnit * cantidad).toFixed(2));
+
+    const result = await pool.query(
+      `INSERT INTO "Inversiones_Proyectos_Items" (
+         proyecto, conversion, desaduanizacion, utilidad, utilidad_interna,
+         items, descripcion, precio_unit, cantidad, precio_total, observacion,
+         inversion_id, plantilla_urbapark_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING id, proyecto, conversion, desaduanizacion, utilidad, utilidad_interna,
+                 items, descripcion, precio_unit, cantidad, precio_total, observacion, created_at`,
+      [
+        inversion.nombre, inversion.conversion, inversion.desaduanizacion, inversion.utilidad, urbapark.utilidad_interna,
+        codigo, urbapark.descripcion, precioUnit, cantidad, precioTotal, observacion || null,
+        inversionId, urbapark.id,
+      ]
+    );
+
+    res.status(201).json({ item: result.rows[0] });
+  } catch (error) {
+    console.error('[POST /api/proyectos/inversiones/:id/items] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo agregar el item', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.patch('/api/proyectos/inversiones/items/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const codigo = String(req.body?.codigo || '').trim();
+  const cantidad = Number(req.body?.cantidad);
+  const observacion = req.body?.observacion !== undefined ? String(req.body.observacion).trim() : undefined;
+
+  if (!Number.isInteger(id) || id <= 0 || !codigo) {
+    res.status(400).json({ error: 'Los campos id y codigo son requeridos' });
+    return;
+  }
+  if (!Number.isFinite(cantidad) || cantidad <= 0) {
+    res.status(400).json({ error: 'La cantidad debe ser un número mayor a 0' });
+    return;
+  }
+
+  try {
+    await ensureInversionesProyectosItemsTable();
+
+    const itemResult = await pool.query(
+      `SELECT id, inversion_id, observacion FROM "Inversiones_Proyectos_Items" WHERE id = $1`,
+      [id]
+    );
+    if (itemResult.rowCount === 0) {
+      res.status(404).json({ error: 'Item no encontrado' });
+      return;
+    }
+    const itemActual = itemResult.rows[0];
+
+    // Cambiar el codigo de un item ya guardado recalcula precio_unit/precio_total
+    // en funcion del precio_venta_inversion del nuevo equipo seleccionado.
+    const urbaparkResult = await pool.query(
+      `SELECT id, descripcion, precio_venta_inversion, utilidad_interna
+       FROM "Plantilla_Urbapark" WHERE inversion_id = $1 AND codigo = $2`,
+      [itemActual.inversion_id, codigo]
+    );
+    if (urbaparkResult.rowCount === 0) {
+      res.status(404).json({ error: 'No se encontró ese código en el consolidado de esta inversión' });
+      return;
+    }
+    const urbapark = urbaparkResult.rows[0];
+
+    const precioUnit = Number(urbapark.precio_venta_inversion || 0);
+    const precioTotal = Number((precioUnit * cantidad).toFixed(2));
+    const observacionFinal = observacion !== undefined ? (observacion || null) : itemActual.observacion;
+
+    const result = await pool.query(
+      `UPDATE "Inversiones_Proyectos_Items"
+       SET items = $2, descripcion = $3, precio_unit = $4, cantidad = $5, precio_total = $6,
+           observacion = $7, utilidad_interna = $8, plantilla_urbapark_id = $9
+       WHERE id = $1
+       RETURNING id, proyecto, conversion, desaduanizacion, utilidad, utilidad_interna,
+                 items, descripcion, precio_unit, cantidad, precio_total, observacion`,
+      [id, codigo, urbapark.descripcion, precioUnit, cantidad, precioTotal, observacionFinal, urbapark.utilidad_interna, urbapark.id]
+    );
+
+    res.status(200).json({ item: result.rows[0] });
+  } catch (error) {
+    console.error('[PATCH /api/proyectos/inversiones/items/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo actualizar el item', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.delete('/api/proyectos/inversiones/items/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensureInversionesProyectosItemsTable();
+    const result = await pool.query(`DELETE FROM "Inversiones_Proyectos_Items" WHERE id = $1 RETURNING id`, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Item no encontrado' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[DELETE /api/proyectos/inversiones/items/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo eliminar el item', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -4101,6 +4433,8 @@ const startServer = async () => {
     await ensureAccesoriosTable();
     await ensurePlantillaProveedorTables();
     await ensureInversionesProyectosTable();
+    await ensurePlantillaUrbaparkTable();
+    await ensureInversionesProyectosItemsTable();
     app.listen(PORT, () => {
       console.log(`humana-backend escuchando en http://localhost:${PORT}`);
     });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     AlertCircle,
+    AlertTriangle,
     Check,
     ChevronDown,
     ChevronUp,
@@ -93,6 +94,9 @@ export default function PlantillaProveedorView() {
     const [utilidadInternaValor, setUtilidadInternaValor] = useState('');
     const [isSavingUtilidad, setIsSavingUtilidad] = useState(false);
     const [utilidadError, setUtilidadError] = useState('');
+    const [showDeleteEquipoConfirm, setShowDeleteEquipoConfirm] = useState(false);
+    const [isDeletingEquipo, setIsDeletingEquipo] = useState(false);
+    const [deleteEquipoError, setDeleteEquipoError] = useState('');
 
     // Modal: Añadir componente
     const [isAddCompModalOpen, setIsAddCompModalOpen] = useState(false);
@@ -318,6 +322,28 @@ export default function PlantillaProveedorView() {
         setUtilidadInternaActiva(false);
         setUtilidadInternaValor('');
         setUtilidadError('');
+        setShowDeleteEquipoConfirm(false);
+        setDeleteEquipoError('');
+    };
+
+    const handleDeleteEquipo = async () => {
+        if (!detalleEquipo) return;
+        setIsDeletingEquipo(true);
+        setDeleteEquipoError('');
+        try {
+            const response = await fetch(`${API_BASE}/equipos/${detalleEquipo.id}`, { method: 'DELETE' });
+            const payload = await response.json().catch(() => null) as { error?: string } | null;
+            if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
+
+            const equipoEliminadoId = detalleEquipo.id;
+            setEquipos(prev => prev.filter(eq => eq.id !== equipoEliminadoId));
+            setShowDeleteEquipoConfirm(false);
+            cerrarDetalle();
+        } catch (error) {
+            setDeleteEquipoError(error instanceof Error ? error.message : 'No se pudo eliminar el equipo.');
+        } finally {
+            setIsDeletingEquipo(false);
+        }
     };
 
     const abrirModalComponente = () => {
@@ -670,9 +696,18 @@ export default function PlantillaProveedorView() {
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
                             <div>
-                                <div className="flex items-center gap-2 text-[#00A1E0] mb-2">
-                                    <Layers size={18} />
-                                    <h4 className="font-bold text-[15px]">{detalleEquipo.categoria_nombre}</h4>
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2 text-[#00A1E0]">
+                                        <Layers size={18} />
+                                        <h4 className="font-bold text-[15px]">{detalleEquipo.categoria_nombre}</h4>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowDeleteEquipoConfirm(true)}
+                                        className="text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors p-1.5 rounded-lg shrink-0"
+                                        title="Eliminar equipo"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
                                 </div>
                                 <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Nombre del Equipo:</p>
                                 <p className="text-[14px] font-medium text-slate-800 mb-3">{detalleEquipo.nombre_equipo}</p>
@@ -870,6 +905,45 @@ export default function PlantillaProveedorView() {
                                 className="px-6 py-2.5 bg-white border border-blue-400 text-blue-600 rounded-full text-[13px] font-bold hover:bg-blue-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                             >
                                 {isSavingComponente ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Guardar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: CONFIRMAR ELIMINAR EQUIPO */}
+            {showDeleteEquipoConfirm && detalleEquipo && (
+                <div className="fixed inset-0 z-[170] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isDeletingEquipo && setShowDeleteEquipoConfirm(false)} />
+                    <div className="relative bg-white rounded-2xl w-full max-w-[420px] shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-8 flex flex-col items-center text-center">
+                            <div className="mb-4 text-red-500">
+                                <AlertTriangle size={48} strokeWidth={1.5} />
+                            </div>
+                            <h3 className="text-[17px] font-bold text-slate-800 mb-2">¿Eliminar este equipo?</h3>
+                            <p className="text-[13px] text-slate-500 leading-relaxed">
+                                Se eliminará <span className="font-bold text-slate-700">{detalleEquipo.nombre_equipo}</span> y todos sus componentes configurados. Esta acción no se puede deshacer.
+                            </p>
+                            {deleteEquipoError && (
+                                <p className="mt-3 w-full text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                    {deleteEquipoError}
+                                </p>
+                            )}
+                        </div>
+                        <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-center gap-4">
+                            <button
+                                onClick={() => setShowDeleteEquipoConfirm(false)}
+                                disabled={isDeletingEquipo}
+                                className="px-8 py-2.5 rounded-full border border-slate-300 text-slate-600 font-medium hover:bg-white transition-colors w-1/2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => void handleDeleteEquipo()}
+                                disabled={isDeletingEquipo}
+                                className="px-8 py-2.5 rounded-full bg-[#DC2626] text-white font-medium hover:bg-red-700 shadow-sm transition-colors w-1/2 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {isDeletingEquipo ? <Loader2 size={16} className="animate-spin" /> : null} Eliminar
                             </button>
                         </div>
                     </div>
