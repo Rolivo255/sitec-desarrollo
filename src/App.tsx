@@ -19,6 +19,7 @@ const SolicitudAccesoriosTabsView = lazy(() => import("./components/mantenimient
 const PyGView = lazy(() => import("./components/contabilidad/PyGView"));
 const RecaudacionView = lazy(() => import("./components/contabilidad/RecaudacionView"));
 const LiquidacionBancosView = lazy(() => import("./components/contabilidad/LiquidacionBancosView"));
+const PresupuestosView = lazy(() => import("./components/contabilidad/PresupuestosView"));
 const PlantillaProveedorView = lazy(() => import("./components/proyectos/PlantillaProveedorView"));
 const InversionesProyectosView = lazy(() => import("./components/proyectos/InversionesView"));
 
@@ -136,6 +137,8 @@ function App() {
         return <RecaudacionView />;
       case 'liquidacion_bancos':
         return <LiquidacionBancosView />;
+      case 'presupuestos':
+        return <PresupuestosView />;
       case 'descuentos':
         return <GestionDescuentosTabsView />;
       case 'valets_fijos':

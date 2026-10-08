@@ -70,7 +70,14 @@ export default function InversionesView() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState<Inversion | null>(null);
     const [detalleNombreEdit, setDetalleNombreEdit] = useState('');
-    const [isEditandoNombreDetalle, setIsEditandoNombreDetalle] = useState(false);
+    const [isEditandoDetalle, setIsEditandoDetalle] = useState(false);
+    const [detalleConversionEdit, setDetalleConversionEdit] = useState('');
+    const [detalleDesaduanizacionEdit, setDetalleDesaduanizacionEdit] = useState('');
+    const [detalleUtilidadEdit, setDetalleUtilidadEdit] = useState('');
+    const [detalleInteresEdit, setDetalleInteresEdit] = useState('');
+    const [detalleAniosOperacionEdit, setDetalleAniosOperacionEdit] = useState('');
+    const [isSavingDetalle, setIsSavingDetalle] = useState(false);
+    const [saveDetalleError, setSaveDetalleError] = useState('');
 
     const [nombre, setNombre] = useState('');
     const [conversion, setConversion] = useState('');
@@ -183,7 +190,8 @@ export default function InversionesView() {
     const abrirDetalle = async (inv: Inversion) => {
         setShowDetailModal(inv);
         setDetalleNombreEdit(inv.nombre);
-        setIsEditandoNombreDetalle(false);
+        setIsEditandoDetalle(false);
+        setSaveDetalleError('');
         setCategoriasAbiertas([]);
         setMostrarSelectorCategoria(false);
         setCategoriaAAbrir('');
@@ -227,6 +235,54 @@ export default function InversionesView() {
             setItemsError(error instanceof Error ? error.message : 'No se pudo cargar la información de items.');
         } finally {
             setIsLoadingItems(false);
+        }
+    };
+
+    const activarEdicionDetalle = () => {
+        if (!showDetailModal) return;
+        setDetalleNombreEdit(showDetailModal.nombre);
+        setDetalleConversionEdit(showDetailModal.conversion !== null && showDetailModal.conversion !== undefined ? String(showDetailModal.conversion) : '');
+        setDetalleDesaduanizacionEdit(showDetailModal.desaduanizacion !== null && showDetailModal.desaduanizacion !== undefined ? String(showDetailModal.desaduanizacion) : '');
+        setDetalleUtilidadEdit(showDetailModal.utilidad !== null && showDetailModal.utilidad !== undefined ? String(showDetailModal.utilidad) : '');
+        setDetalleInteresEdit(showDetailModal.interes !== null && showDetailModal.interes !== undefined ? String(showDetailModal.interes) : '');
+        setDetalleAniosOperacionEdit(showDetailModal.anios_operacion !== null && showDetailModal.anios_operacion !== undefined ? String(showDetailModal.anios_operacion) : '');
+        setSaveDetalleError('');
+        setIsEditandoDetalle(true);
+    };
+
+    const cancelarEdicionDetalle = () => {
+        if (showDetailModal) setDetalleNombreEdit(showDetailModal.nombre);
+        setIsEditandoDetalle(false);
+        setSaveDetalleError('');
+    };
+
+    const handleGuardarDetalle = async () => {
+        if (!showDetailModal || !detalleNombreEdit.trim()) return;
+        setIsSavingDetalle(true);
+        setSaveDetalleError('');
+        try {
+            const response = await fetch(`${API_BASE}/${showDetailModal.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nombre: detalleNombreEdit.trim(),
+                    conversion: detalleConversionEdit || undefined,
+                    desaduanizacion: detalleDesaduanizacionEdit || undefined,
+                    utilidad: detalleUtilidadEdit || undefined,
+                    interes: detalleInteresEdit || undefined,
+                    aniosOperacion: detalleAniosOperacionEdit || undefined,
+                }),
+            });
+            const payload = await response.json().catch(() => null) as { inversion?: Inversion; error?: string } | null;
+            if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
+            const actualizada = payload!.inversion!;
+            setShowDetailModal(actualizada);
+            setInversiones(prev => prev.map(inv => (inv.id === actualizada.id ? actualizada : inv)));
+            setIsEditandoDetalle(false);
+        } catch (error) {
+            setSaveDetalleError(error instanceof Error ? error.message : 'No se pudo guardar la inversión.');
+        } finally {
+            setIsSavingDetalle(false);
         }
     };
 
@@ -656,41 +712,115 @@ export default function InversionesView() {
                                         type="text"
                                         value={detalleNombreEdit}
                                         onChange={(e) => setDetalleNombreEdit(e.target.value)}
-                                        readOnly={!isEditandoNombreDetalle}
-                                        className={`flex-1 text-[14px] font-bold text-[#1E293B] outline-none bg-transparent ${isEditandoNombreDetalle ? '' : 'cursor-default'}`}
+                                        readOnly={!isEditandoDetalle}
+                                        className={`flex-1 text-[14px] font-bold text-[#1E293B] outline-none bg-transparent ${isEditandoDetalle ? '' : 'cursor-default'}`}
                                     />
-                                    <button
-                                        onClick={() => setIsEditandoNombreDetalle(v => !v)}
-                                        className="text-slate-400 hover:text-emerald-600 transition-colors shrink-0"
-                                        title="Editar nombre"
-                                    >
-                                        <Pencil size={16} />
-                                    </button>
+                                    {!isEditandoDetalle && (
+                                        <button
+                                            onClick={activarEdicionDetalle}
+                                            className="text-slate-400 hover:text-emerald-600 transition-colors shrink-0"
+                                            title="Editar inversión"
+                                        >
+                                            <Pencil size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                                 <div className="p-3 bg-white border border-slate-200 rounded-xl">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Conversión ($)</p>
-                                    <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.conversion)}</p>
+                                    {isEditandoDetalle ? (
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={detalleConversionEdit}
+                                            onChange={(e) => setDetalleConversionEdit(e.target.value)}
+                                            className="w-full text-[14px] font-bold text-slate-700 outline-none border border-slate-200 rounded-lg px-2 py-1 focus:border-emerald-400"
+                                        />
+                                    ) : (
+                                        <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.conversion)}</p>
+                                    )}
                                 </div>
                                 <div className="p-3 bg-white border border-slate-200 rounded-xl">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Desaduanización</p>
-                                    <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.desaduanizacion)}</p>
+                                    {isEditandoDetalle ? (
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={detalleDesaduanizacionEdit}
+                                            onChange={(e) => setDetalleDesaduanizacionEdit(e.target.value)}
+                                            className="w-full text-[14px] font-bold text-slate-700 outline-none border border-slate-200 rounded-lg px-2 py-1 focus:border-emerald-400"
+                                        />
+                                    ) : (
+                                        <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.desaduanizacion)}</p>
+                                    )}
                                 </div>
                                 <div className="p-3 bg-white border border-slate-200 rounded-xl">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Utilidad</p>
-                                    <p className="text-[14px] font-bold text-emerald-600">{porcentajeOVacio(showDetailModal.utilidad)}</p>
+                                    {isEditandoDetalle ? (
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={detalleUtilidadEdit}
+                                            onChange={(e) => setDetalleUtilidadEdit(e.target.value)}
+                                            className="w-full text-[14px] font-bold text-emerald-600 outline-none border border-slate-200 rounded-lg px-2 py-1 focus:border-emerald-400"
+                                        />
+                                    ) : (
+                                        <p className="text-[14px] font-bold text-emerald-600">{porcentajeOVacio(showDetailModal.utilidad)}</p>
+                                    )}
                                 </div>
                                 <div className="p-3 bg-white border border-slate-200 rounded-xl">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Interés</p>
-                                    <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.interes)}</p>
+                                    {isEditandoDetalle ? (
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={detalleInteresEdit}
+                                            onChange={(e) => setDetalleInteresEdit(e.target.value)}
+                                            className="w-full text-[14px] font-bold text-slate-700 outline-none border border-slate-200 rounded-lg px-2 py-1 focus:border-emerald-400"
+                                        />
+                                    ) : (
+                                        <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.interes)}</p>
+                                    )}
                                 </div>
                                 <div className="p-3 bg-white border border-slate-200 rounded-xl">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Años de Operación</p>
-                                    <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.anios_operacion)}</p>
+                                    {isEditandoDetalle ? (
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            min={0}
+                                            value={detalleAniosOperacionEdit}
+                                            onChange={(e) => setDetalleAniosOperacionEdit(e.target.value)}
+                                            className="w-full text-[14px] font-bold text-slate-700 outline-none border border-slate-200 rounded-lg px-2 py-1 focus:border-emerald-400"
+                                        />
+                                    ) : (
+                                        <p className="text-[14px] font-bold text-slate-700">{vacioOValor(showDetailModal.anios_operacion)}</p>
+                                    )}
                                 </div>
                             </div>
+
+                            {isEditandoDetalle && (
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => void handleGuardarDetalle()}
+                                        disabled={!detalleNombreEdit.trim() || isSavingDetalle}
+                                        className="px-5 py-2 bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg text-[12px] font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isSavingDetalle ? <Loader2 size={14} className="animate-spin" /> : null} Guardar cambios
+                                    </button>
+                                    <button
+                                        onClick={cancelarEdicionDetalle}
+                                        className="px-5 py-2 text-slate-500 hover:text-slate-700 text-[12px] font-medium"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    {saveDetalleError && (
+                                        <p className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">{saveDetalleError}</p>
+                                    )}
+                                </div>
+                            )}
 
                             <div>
                                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">

@@ -1586,6 +1586,397 @@ app.get('/api/contabilidad/liquidacion-bancos/historial', async (_req, res) => {
   }
 });
 
+/* ─────────────────────── CONTABILIDAD: PRESUPUESTOS ─────────────────────── */
+
+const PRESUPUESTOS_AREAS = ['CONTABILIDAD', 'TALENTO HUMANO', 'COMPRAS', 'COMERCIAL', 'TECNOLOGIA Y PROYECTOS', 'OPERACIONES'];
+const PRESUPUESTOS_MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// Algunas fuentes externas (ej. Excel exportado de otro sistema) escriben el texto
+// "null" en vez de dejar la celda vacía; se normaliza a cadena vacía en cualquier
+// texto libre que vaya a esta tabla (detalle de cuenta, etc.).
+const normalizarTextoLibre = (valor) => {
+  const texto = String(valor ?? '').trim();
+  return texto.toLowerCase() === 'null' ? '' : texto;
+};
+
+// Esta funcion corre ~25 sentencias CREATE/ALTER TABLE secuenciales (migracion idempotente
+// del esquema). Cada round-trip al pooler remoto de Supabase cuesta cientos de ms, así que
+// ejecutarla en cada request (como se hacía antes) sumaba 8-10s de latencia extra a TODOS
+// los endpoints de Presupuestos. Se memoiza en una promesa a nivel de módulo para que el
+// trabajo pesado corra una sola vez (la primera request tras arrancar el servidor) y las
+// siguientes solo esperen esa misma promesa ya resuelta.
+let presupuestosCuentasTableListaPromise = null;
+const ensurePresupuestosCuentasTable = () => {
+  if (!presupuestosCuentasTableListaPromise) {
+    presupuestosCuentasTableListaPromise = ensurePresupuestosCuentasTableInterno().catch((error) => {
+      presupuestosCuentasTableListaPromise = null; // permite reintentar si falló
+      throw error;
+    });
+  }
+  return presupuestosCuentasTableListaPromise;
+};
+
+const ensurePresupuestosCuentasTableInterno = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "Presupuestos_Cuentas" (
+      id BIGSERIAL PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Esquema viejo (parqueadero_id/area/nombre_cuenta sueltos, sin meses) migrado al
+  // esquema consolidado ptp_* con las 12 columnas mensuales + ptp_anio.
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" DROP COLUMN IF EXISTS anio`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" DROP COLUMN IF EXISTS parqueadero_id`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" DROP COLUMN IF EXISTS parqueadero_nombre`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" DROP COLUMN IF EXISTS area`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" DROP COLUMN IF EXISTS nombre_cuenta`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" DROP COLUMN IF EXISTS detalle_cuenta`);
+
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_parqueadero VARCHAR(200)`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_centrocosto VARCHAR(50)`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_area VARCHAR(100)`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_codigocuenta VARCHAR(50)`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_nombrecuenta VARCHAR(200)`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_detallecuenta VARCHAR(255)`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_enero NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_febrero NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_marzo NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_abril NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_mayo NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_junio NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_julio NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_agosto NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_septiembre NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_octubre NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_noviembre NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_diciembre NUMERIC(14,2) NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ADD COLUMN IF NOT EXISTS ptp_anio INTEGER`);
+
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ALTER COLUMN ptp_parqueadero SET NOT NULL`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ALTER COLUMN ptp_centrocosto SET NOT NULL`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ALTER COLUMN ptp_area SET NOT NULL`);
+  await pool.query(`ALTER TABLE "Presupuestos_Cuentas" ALTER COLUMN ptp_anio SET NOT NULL`);
+
+  const restriccion = await pool.query(`
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_name = 'Presupuestos_Cuentas' AND constraint_name = 'presupuestos_cuentas_unicidad'
+  `);
+  if (restriccion.rowCount === 0) {
+    await pool.query(`
+      ALTER TABLE "Presupuestos_Cuentas"
+      ADD CONSTRAINT presupuestos_cuentas_unicidad UNIQUE (ptp_parqueadero, ptp_area, ptp_detallecuenta, ptp_anio)
+    `);
+  }
+};
+
+const PRESUPUESTOS_CUENTAS_COLUMNAS = `
+  id, ptp_parqueadero, ptp_centrocosto, ptp_area, ptp_codigocuenta, ptp_nombrecuenta, ptp_detallecuenta,
+  ptp_enero, ptp_febrero, ptp_marzo, ptp_abril, ptp_mayo, ptp_junio, ptp_julio, ptp_agosto,
+  ptp_septiembre, ptp_octubre, ptp_noviembre, ptp_diciembre, ptp_anio, created_at
+`;
+
+app.get('/api/contabilidad/presupuestos/cuentas', async (req, res) => {
+  const { anio, parqueaderoId, area, nombreCuenta } = req.query;
+
+  try {
+    await ensurePresupuestosCuentasTable();
+
+    const condiciones = [];
+    const valores = [];
+
+    if (anio !== undefined && anio !== '') {
+      valores.push(Number(anio));
+      condiciones.push(`ptp_anio = $${valores.length}`);
+    }
+    if (parqueaderoId !== undefined && parqueaderoId !== '') {
+      valores.push(String(parqueaderoId));
+      condiciones.push(`ptp_centrocosto = $${valores.length}`);
+    }
+    if (area !== undefined && area !== '') {
+      valores.push(String(area));
+      condiciones.push(`ptp_area = $${valores.length}`);
+    }
+    if (nombreCuenta !== undefined && nombreCuenta !== '') {
+      valores.push(`%${String(nombreCuenta)}%`);
+      condiciones.push(`ptp_nombrecuenta ILIKE $${valores.length}`);
+    }
+
+    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
+    const result = await pool.query(
+      `SELECT ${PRESUPUESTOS_CUENTAS_COLUMNAS} FROM "Presupuestos_Cuentas" ${where} ORDER BY created_at DESC`,
+      valores
+    );
+
+    res.status(200).json({ cuentas: result.rows });
+  } catch (error) {
+    console.error('[GET /api/contabilidad/presupuestos/cuentas] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron obtener las cuentas del presupuesto', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Busca solo las cuentas que coincidan con una lista de llaves compuestas (centro de
+// costo + área + código de cuenta + detalle + año). Usado por la subida de plantilla para
+// no tener que traer la tabla completa (10k+ filas, ~8-20s) solo para comparar.
+app.post('/api/contabilidad/presupuestos/cuentas/buscar-por-llaves', async (req, res) => {
+  const llaves = Array.isArray(req.body?.llaves) ? req.body.llaves : [];
+
+  if (llaves.length === 0) {
+    res.status(200).json({ cuentas: [] });
+    return;
+  }
+
+  try {
+    await ensurePresupuestosCuentasTable();
+    const centrocostos = llaves.map((l) => String(l?.centroCosto || '').trim());
+    const areas = llaves.map((l) => String(l?.area || '').trim().toUpperCase());
+    const codigos = llaves.map((l) => String(l?.codigoCuenta || '').trim());
+    const detalles = llaves.map((l) => String(l?.detalleCuenta || '').trim());
+    const anios = llaves.map((l) => Number(l?.anio) || 0);
+
+    const result = await pool.query(
+      `SELECT ${PRESUPUESTOS_CUENTAS_COLUMNAS} FROM "Presupuestos_Cuentas"
+       WHERE (ptp_centrocosto, ptp_area, ptp_codigocuenta, COALESCE(ptp_detallecuenta, ''), ptp_anio)
+       IN (SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::int[]))`,
+      [centrocostos, areas, codigos, detalles, anios]
+    );
+
+    res.status(200).json({ cuentas: result.rows });
+  } catch (error) {
+    console.error('[POST /api/contabilidad/presupuestos/cuentas/buscar-por-llaves] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron buscar las cuentas existentes', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/contabilidad/presupuestos/cuentas', async (req, res) => {
+  const anio = Number(req.body?.anio);
+  const parqueadero = String(req.body?.parqueadero || '').trim();
+  const centroCosto = String(req.body?.centroCosto || '').trim();
+  const area = String(req.body?.area || '').trim().toUpperCase();
+  const codigoCuenta = normalizarTextoLibre(req.body?.codigoCuenta);
+  const nombreCuenta = normalizarTextoLibre(req.body?.nombreCuenta);
+  const detalleCuenta = normalizarTextoLibre(req.body?.detalleCuenta);
+
+  if (!Number.isInteger(anio) || anio <= 0) {
+    res.status(400).json({ error: 'El campo año es requerido' });
+    return;
+  }
+  if (!parqueadero || !centroCosto) {
+    res.status(400).json({ error: 'El campo parqueadero es requerido' });
+    return;
+  }
+  if (!PRESUPUESTOS_AREAS.includes(area)) {
+    res.status(400).json({ error: 'El área seleccionada no es válida' });
+    return;
+  }
+
+  try {
+    await ensurePresupuestosCuentasTable();
+
+    const result = await pool.query(
+      `INSERT INTO "Presupuestos_Cuentas" (
+         ptp_parqueadero, ptp_centrocosto, ptp_area, ptp_codigocuenta, ptp_nombrecuenta, ptp_detallecuenta, ptp_anio
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING ${PRESUPUESTOS_CUENTAS_COLUMNAS}`,
+      [parqueadero, centroCosto, area, codigoCuenta || null, nombreCuenta || null, detalleCuenta || null, anio]
+    );
+
+    res.status(201).json({ cuenta: result.rows[0] });
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+      res.status(409).json({ error: 'Ese parqueadero ya tiene una cuenta con la misma descripción, área y año.' });
+      return;
+    }
+    console.error('[POST /api/contabilidad/presupuestos/cuentas] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo crear la cuenta', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Actualiza los datos de identidad de una cuenta (parqueadero, area, cuenta, detalle).
+// No toca los valores mensuales ni el año: eso se edita por separado en /valores.
+app.patch('/api/contabilidad/presupuestos/cuentas/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const parqueadero = String(req.body?.parqueadero || '').trim();
+  const centroCosto = String(req.body?.centroCosto || '').trim();
+  const area = String(req.body?.area || '').trim().toUpperCase();
+  const codigoCuenta = normalizarTextoLibre(req.body?.codigoCuenta);
+  const nombreCuenta = normalizarTextoLibre(req.body?.nombreCuenta);
+  const detalleCuenta = normalizarTextoLibre(req.body?.detalleCuenta);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+  if (!parqueadero || !centroCosto) {
+    res.status(400).json({ error: 'El campo parqueadero es requerido' });
+    return;
+  }
+  if (!PRESUPUESTOS_AREAS.includes(area)) {
+    res.status(400).json({ error: 'El área seleccionada no es válida' });
+    return;
+  }
+
+  try {
+    await ensurePresupuestosCuentasTable();
+    const result = await pool.query(
+      `UPDATE "Presupuestos_Cuentas"
+       SET ptp_parqueadero = $2, ptp_centrocosto = $3, ptp_area = $4,
+           ptp_codigocuenta = $5, ptp_nombrecuenta = $6, ptp_detallecuenta = $7
+       WHERE id = $1
+       RETURNING ${PRESUPUESTOS_CUENTAS_COLUMNAS}`,
+      [id, parqueadero, centroCosto, area, codigoCuenta || null, nombreCuenta || null, detalleCuenta || null]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Cuenta no encontrada' });
+      return;
+    }
+    res.status(200).json({ cuenta: result.rows[0] });
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+      res.status(409).json({ error: 'Ese parqueadero ya tiene una cuenta con la misma descripción, área y año.' });
+      return;
+    }
+    console.error('[PATCH /api/contabilidad/presupuestos/cuentas/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo actualizar la cuenta', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Actualiza unicamente los 12 valores mensuales de una cuenta.
+app.patch('/api/contabilidad/presupuestos/cuentas/:id/valores', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  const valoresMeses = PRESUPUESTOS_MESES.map((mes) => {
+    const valor = Number(req.body?.[mes] ?? 0);
+    return Number.isFinite(valor) ? valor : 0;
+  });
+
+  try {
+    await ensurePresupuestosCuentasTable();
+    const sets = PRESUPUESTOS_MESES.map((mes, i) => `ptp_${mes} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE "Presupuestos_Cuentas" SET ${sets} WHERE id = $1 RETURNING ${PRESUPUESTOS_CUENTAS_COLUMNAS}`,
+      [id, ...valoresMeses]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Cuenta no encontrada' });
+      return;
+    }
+    res.status(200).json({ cuenta: result.rows[0] });
+  } catch (error) {
+    console.error('[PATCH /api/contabilidad/presupuestos/cuentas/:id/valores] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudieron actualizar los valores', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.delete('/api/contabilidad/presupuestos/cuentas/:id', async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+
+  try {
+    await ensurePresupuestosCuentasTable();
+    const result = await pool.query(`DELETE FROM "Presupuestos_Cuentas" WHERE id = $1 RETURNING id`, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Cuenta no encontrada' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[DELETE /api/contabilidad/presupuestos/cuentas/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo eliminar la cuenta', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Catalogo de cuentas contables (tabla externa ya existente en Supabase, sincronizada
+// desde el ERP). "tipo" filtra entre Administracion/Operacion segun el parqueadero elegido.
+app.get('/api/contabilidad/presupuestos/cuentas-contables', async (req, res) => {
+  const tipo = String(req.query.tipo || '').trim();
+
+  try {
+    const condiciones = [];
+    const valores = [];
+    if (tipo) {
+      valores.push(tipo);
+      condiciones.push(`tipo = $${valores.length}`);
+    }
+    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
+    const result = await pool.query(
+      `SELECT tr_id, ptp_codigocuenta, ptp_nombrecuenta, tipo FROM cuentas_contables ${where} ORDER BY ptp_nombrecuenta ASC`,
+      valores
+    );
+    res.status(200).json({ cuentas: result.rows });
+  } catch (error) {
+    console.error('[GET /api/contabilidad/presupuestos/cuentas-contables] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo obtener el catálogo de cuentas contables', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Catalogo de "detalle de cuenta" (tabla externa ya existente en Supabase). Permite
+// buscar valores existentes y crear uno nuevo al vuelo si no se encuentra (find-or-create).
+app.get('/api/contabilidad/presupuestos/detalle-cuenta', async (_req, res) => {
+  try {
+    const result = await pool.query(`SELECT tr_id, ptp_detalle FROM detalle_cuenta_contable ORDER BY ptp_detalle ASC`);
+    res.status(200).json({ detalles: result.rows });
+  } catch (error) {
+    console.error('[GET /api/contabilidad/presupuestos/detalle-cuenta] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo obtener el catálogo de detalle de cuenta', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+app.post('/api/contabilidad/presupuestos/detalle-cuenta', async (req, res) => {
+  const detalle = normalizarTextoLibre(req.body?.detalle);
+
+  if (!detalle) {
+    res.status(400).json({ error: 'El campo detalle es requerido' });
+    return;
+  }
+
+  try {
+    const existente = await pool.query(
+      `SELECT tr_id, ptp_detalle FROM detalle_cuenta_contable WHERE ptp_detalle ILIKE $1 LIMIT 1`,
+      [detalle]
+    );
+    if (existente.rowCount > 0) {
+      res.status(200).json({ detalle: existente.rows[0] });
+      return;
+    }
+
+    const siguienteId = await pool.query(`SELECT COALESCE(MAX(tr_id), 0) + 1 AS siguiente FROM detalle_cuenta_contable`);
+    const nuevoId = siguienteId.rows[0].siguiente;
+
+    const result = await pool.query(
+      `INSERT INTO detalle_cuenta_contable (tr_id, ptp_detalle) VALUES ($1, $2) RETURNING tr_id, ptp_detalle`,
+      [nuevoId, detalle]
+    );
+    res.status(201).json({ detalle: result.rows[0] });
+  } catch (error) {
+    console.error('[POST /api/contabilidad/presupuestos/detalle-cuenta] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo crear el detalle de cuenta', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Catalogo maestro de centros de costo / parqueaderos (tabla existente en Supabase),
+// usado para validar la subida masiva de la plantilla de Presupuestos.
+app.get('/api/contabilidad/presupuestos/centros-costo-master', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT cost_center_code, name, status FROM "Centros_Costos_Master" WHERE deleted_at IS NULL ORDER BY name ASC`
+    );
+    res.status(200).json({ centros: result.rows });
+  } catch (error) {
+    console.error('[GET /api/contabilidad/presupuestos/centros-costo-master] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo obtener el catálogo de centros de costo', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 app.get('/api/humana/periods', async (_req, res) => {
   try {
     console.log('[GET /api/humana/periods] Obteniendo periodos disponibles');
@@ -4182,6 +4573,47 @@ app.post('/api/proyectos/inversiones', async (req, res) => {
   }
 });
 
+// Actualiza los datos generales de una inversion (nombre, conversion, desaduanizacion,
+// utilidad, interes, anios_operacion). No regenera el consolidado Plantilla_Urbapark:
+// los items ya agregados conservan su precio_unit congelado.
+app.patch('/api/proyectos/inversiones/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const nombre = String(req.body?.nombre || '').trim();
+  const conversion = req.body?.conversion !== undefined && req.body?.conversion !== '' ? Number(req.body.conversion) : null;
+  const desaduanizacion = req.body?.desaduanizacion !== undefined && req.body?.desaduanizacion !== '' ? Number(req.body.desaduanizacion) : null;
+  const utilidad = req.body?.utilidad !== undefined && req.body?.utilidad !== '' ? Number(req.body.utilidad) : null;
+  const interes = req.body?.interes !== undefined && req.body?.interes !== '' ? Number(req.body.interes) : null;
+  const aniosOperacion = req.body?.aniosOperacion !== undefined && req.body?.aniosOperacion !== '' ? Number(req.body.aniosOperacion) : null;
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'El parámetro id es inválido' });
+    return;
+  }
+  if (!nombre) {
+    res.status(400).json({ error: 'El campo nombre es requerido' });
+    return;
+  }
+
+  try {
+    await ensureInversionesProyectosTable();
+    const result = await pool.query(
+      `UPDATE "Inversiones_Proyectos"
+       SET nombre = $2, conversion = $3, desaduanizacion = $4, utilidad = $5, interes = $6, anios_operacion = $7
+       WHERE id = $1
+       RETURNING id, nombre, conversion, desaduanizacion, utilidad, interes, anios_operacion, estado, created_at`,
+      [id, nombre, conversion, desaduanizacion, utilidad, interes, aniosOperacion]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Inversión no encontrada' });
+      return;
+    }
+    res.status(200).json({ inversion: result.rows[0] });
+  } catch (error) {
+    console.error('[PATCH /api/proyectos/inversiones/:id] Error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'No se pudo actualizar la inversión', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 // Lista el consolidado de Plantilla_Urbapark generado para una inversion especifica,
 // usado para poblar los selectores de Categoria -> Equipo al agregar items.
 app.get('/api/proyectos/plantilla-urbapark', async (req, res) => {
@@ -4435,6 +4867,7 @@ const startServer = async () => {
     await ensureInversionesProyectosTable();
     await ensurePlantillaUrbaparkTable();
     await ensureInversionesProyectosItemsTable();
+    await ensurePresupuestosCuentasTable();
     app.listen(PORT, () => {
       console.log(`humana-backend escuchando en http://localhost:${PORT}`);
     });
