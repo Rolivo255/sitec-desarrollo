@@ -85,6 +85,10 @@ interface FilaLogSubida {
 
 const AREAS = ['CONTABILIDAD', 'TALENTO HUMANO', 'COMPRAS', 'COMERCIAL', 'TECNOLOGIA Y PROYECTOS', 'OPERACIONES'];
 
+// Oculto a pedido del usuario (cambio solo visual); se deja la lógica intacta por si se
+// vuelve a mostrar más adelante.
+const MOSTRAR_EDICION_MASIVA = false;
+
 const API_BASE = '/api/contabilidad/presupuestos/cuentas';
 const API_CUENTAS_CONTABLES = '/api/contabilidad/presupuestos/cuentas-contables';
 const API_DETALLE_CUENTA = '/api/contabilidad/presupuestos/detalle-cuenta';
@@ -426,6 +430,14 @@ export default function PresupuestosView() {
         (pagina - 1) * FILAS_POR_PAGINA,
         pagina * FILAS_POR_PAGINA
     );
+
+    // Suma de los 12 meses de cada cuenta visible según los filtros actuales (no solo la
+    // página actual), para mostrar un total anual acorde a lo que el usuario está viendo.
+    const totalAnualFiltrado = useMemo(() => (
+        cuentasFiltradas.reduce((acc, c) => (
+            acc + MESES.reduce((sumaMeses, mes) => sumaMeses + Number(obtenerValorMes(c, mes) ?? 0), 0)
+        ), 0)
+    ), [cuentasFiltradas]);
 
     const PLANTILLA_COLUMNAS = [
         { header: 'PARQUEADERO', key: 'parqueadero', width: 20 },
@@ -1125,7 +1137,7 @@ export default function PresupuestosView() {
 
             {/* Filtros */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 mb-6">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div className="w-full md:w-1/4">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Año</label>
                         <div className="relative">
@@ -1142,45 +1154,45 @@ export default function PresupuestosView() {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                         </div>
                     </div>
-                    <div className="flex flex-col gap-2 shrink-0">
-                        <div className="flex items-stretch gap-2">
-                            <button
-                                onClick={abrirModalCrear}
-                                className="w-20 h-16 flex flex-col items-center justify-center gap-1 bg-[#001F3F] hover:bg-blue-900 text-white font-bold rounded-xl text-[11px] uppercase tracking-wider shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
-                            >
-                                <Plus size={16} />
-                                cuenta
-                            </button>
-                            <button
-                                onClick={() => void descargarPlantilla()}
-                                disabled={isDescargandoPlantilla}
-                                title="Descargar Plantilla"
-                                className="w-20 h-16 flex flex-col items-center justify-center gap-1 bg-white border border-slate-300 text-slate-600 font-bold rounded-xl text-[10px] uppercase tracking-wider hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isDescargandoPlantilla ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                Plantilla
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setErrorSubidaPlantilla('');
-                                    setLogSubidaPlantilla([]);
-                                    setPasoSubirPlantilla('confirmar');
-                                    setShowSubirModal(true);
-                                }}
-                                title="Subir Plantilla"
-                                className="w-20 h-16 flex flex-col items-center justify-center gap-1 bg-white border border-slate-300 text-slate-600 font-bold rounded-xl text-[10px] uppercase tracking-wider hover:bg-slate-50 active:scale-95 transition-all"
-                            >
-                                <Upload size={16} />
-                                Subir
-                            </button>
-                        </div>
+                    <div className="flex items-stretch gap-2 shrink-0">
                         <button
-                            onClick={abrirEdicionMasiva}
-                            className="flex items-center justify-center gap-1.5 px-6 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-xl text-[11px] uppercase tracking-wider hover:bg-slate-50 active:scale-95 transition-all"
+                            onClick={abrirModalCrear}
+                            className="w-16 h-16 flex flex-col items-center justify-center gap-1 bg-[#001F3F] hover:bg-blue-900 text-white font-bold rounded-xl text-[10px] uppercase tracking-wider shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
                         >
-                            <Table2 size={14} />
-                            Edición Masiva
+                            <Plus size={16} />
+                            cuenta
                         </button>
+                        <button
+                            onClick={() => void descargarPlantilla()}
+                            disabled={isDescargandoPlantilla}
+                            title="Descargar Plantilla"
+                            className="w-16 h-16 flex flex-col items-center justify-center gap-1 bg-white border border-slate-300 text-slate-600 font-bold rounded-xl text-[10px] uppercase tracking-wider hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isDescargandoPlantilla ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                            Plantilla
+                        </button>
+                        <button
+                            onClick={() => {
+                                setErrorSubidaPlantilla('');
+                                setLogSubidaPlantilla([]);
+                                setPasoSubirPlantilla('confirmar');
+                                setShowSubirModal(true);
+                            }}
+                            title="Subir Plantilla"
+                            className="w-16 h-16 flex flex-col items-center justify-center gap-1 bg-white border border-slate-300 text-slate-600 font-bold rounded-xl text-[10px] uppercase tracking-wider hover:bg-slate-50 active:scale-95 transition-all"
+                        >
+                            <Upload size={16} />
+                            Subir
+                        </button>
+                        {MOSTRAR_EDICION_MASIVA && (
+                            <button
+                                onClick={abrirEdicionMasiva}
+                                className="w-16 h-16 flex flex-col items-center justify-center gap-1 bg-white border border-slate-300 text-slate-600 font-bold rounded-xl text-[10px] uppercase tracking-wider hover:bg-slate-50 active:scale-95 transition-all"
+                            >
+                                <Table2 size={16} />
+                                Masiva
+                            </button>
+                        )}
                         <input
                             ref={inputArchivoPlantillaRef}
                             type="file"
@@ -1200,9 +1212,11 @@ export default function PresupuestosView() {
                         <AlertCircle size={14} className="shrink-0 mt-0.5" /> {errorPlantilla}
                     </div>
                 )}
+            </div>
 
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                 <div className="flex flex-col md:flex-row gap-4">
-                    <div className="w-full md:w-1/3">
+                    <div className="w-full md:w-64">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Parqueadero</label>
                         <div className="relative">
                             <Building className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -1221,7 +1235,7 @@ export default function PresupuestosView() {
                         </div>
                     </div>
 
-                    <div className="w-full md:w-1/3">
+                    <div className="w-full md:w-64">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Área</label>
                         <div className="relative">
                             <select
@@ -1236,7 +1250,7 @@ export default function PresupuestosView() {
                         </div>
                     </div>
 
-                    <div className="w-full md:w-1/3">
+                    <div className="w-full md:w-64">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block invisible">Cuenta</label>
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -1248,6 +1262,15 @@ export default function PresupuestosView() {
                                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-700 font-medium focus:border-[#001F3F] transition-all placeholder:text-blue-500/70"
                             />
                         </div>
+                    </div>
+                </div>
+
+                <div className="shrink-0 text-right">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Total Anual</label>
+                    <div className="px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm">
+                        <span className="text-lg font-black text-[#001F3F] whitespace-nowrap">
+                            $ {totalAnualFiltrado.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                     </div>
                 </div>
             </div>
