@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../../services/authenticatedFetch';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertCircle,
@@ -113,7 +114,7 @@ const cargarParqueaderosCacheado = (): Promise<NominaCostCenter[]> => {
 let detallesCuentaCachePromise: Promise<DetalleCuentaContable[]> | null = null;
 const cargarDetallesCuentaCacheado = (): Promise<DetalleCuentaContable[]> => {
     if (!detallesCuentaCachePromise) {
-        detallesCuentaCachePromise = fetch(API_DETALLE_CUENTA)
+        detallesCuentaCachePromise = authenticatedFetch(API_DETALLE_CUENTA)
             .then(r => r.json())
             .then((payload: { detalles: DetalleCuentaContable[] }) => payload.detalles ?? [])
             .catch((error) => { detallesCuentaCachePromise = null; throw error; });
@@ -132,7 +133,7 @@ const agregarDetalleAlCache = (detalle: DetalleCuentaContable) => {
 let catalogoCuentasContablesCachePromise: Promise<CuentaContable[]> | null = null;
 const cargarCatalogoCuentasContablesCacheado = (): Promise<CuentaContable[]> => {
     if (!catalogoCuentasContablesCachePromise) {
-        catalogoCuentasContablesCachePromise = fetch(API_CUENTAS_CONTABLES)
+        catalogoCuentasContablesCachePromise = authenticatedFetch(API_CUENTAS_CONTABLES)
             .then(r => r.json())
             .then((payload: { cuentas: CuentaContable[] }) => payload.cuentas ?? [])
             .catch((error) => { catalogoCuentasContablesCachePromise = null; throw error; });
@@ -143,7 +144,7 @@ const cargarCatalogoCuentasContablesCacheado = (): Promise<CuentaContable[]> => 
 let centrosCostoMasterCachePromise: Promise<CentroCostoMaster[]> | null = null;
 const cargarCentrosCostoMasterCacheado = (): Promise<CentroCostoMaster[]> => {
     if (!centrosCostoMasterCachePromise) {
-        centrosCostoMasterCachePromise = fetch(API_CENTROS_COSTO_MASTER)
+        centrosCostoMasterCachePromise = authenticatedFetch(API_CENTROS_COSTO_MASTER)
             .then(r => r.json())
             .then((payload: { centros: CentroCostoMaster[] }) => payload.centros ?? [])
             .catch((error) => { centrosCostoMasterCachePromise = null; throw error; });
@@ -374,7 +375,7 @@ export default function PresupuestosView() {
         setIsLoading(true);
         setLoadError('');
         try {
-            const response = await fetch(`${API_BASE}?anio=${anio}`);
+            const response = await authenticatedFetch(`${API_BASE}?anio=${anio}`);
             if (!response.ok) throw new Error(`Error ${response.status} al cargar las cuentas`);
             const payload = await response.json() as { cuentas: CuentaPresupuesto[] };
             setCuentas(payload.cuentas ?? []);
@@ -603,7 +604,7 @@ export default function PresupuestosView() {
             // pide al servidor solo las que coinciden con esas llaves puntuales.
             const actuales = new Map<string, CuentaPresupuesto>();
             if (filasValidas.length > 0) {
-                const respBuscar = await fetch(`${API_BASE}/buscar-por-llaves`, {
+                const respBuscar = await authenticatedFetch(`${API_BASE}/buscar-por-llaves`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -626,7 +627,7 @@ export default function PresupuestosView() {
                 const actual = actuales.get(claveDeFila(fila));
                 try {
                     if (actual) {
-                        const respIdentidad = await fetch(`${API_BASE}/${actual.id}`, {
+                        const respIdentidad = await authenticatedFetch(`${API_BASE}/${actual.id}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -644,7 +645,7 @@ export default function PresupuestosView() {
                         }
                         const body: Record<string, number> = {};
                         MESES.forEach((mes) => { body[mes] = fila.meses[mes]; });
-                        const respValores = await fetch(`${API_BASE}/${actual.id}/valores`, {
+                        const respValores = await authenticatedFetch(`${API_BASE}/${actual.id}/valores`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body),
@@ -656,7 +657,7 @@ export default function PresupuestosView() {
                         log.push({ ...base, estado: 'actualizada', mensaje: 'Ya existía: se sobrescribió con los nuevos valores.' });
                         hayCambios = true;
                     } else {
-                        const respCrear = await fetch(API_BASE, {
+                        const respCrear = await authenticatedFetch(API_BASE, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -676,7 +677,7 @@ export default function PresupuestosView() {
                         const creado = await respCrear.json() as { cuenta: CuentaPresupuesto };
                         const body: Record<string, number> = {};
                         MESES.forEach((mes) => { body[mes] = fila.meses[mes]; });
-                        const respValores = await fetch(`${API_BASE}/${creado.cuenta.id}/valores`, {
+                        const respValores = await authenticatedFetch(`${API_BASE}/${creado.cuenta.id}/valores`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body),
@@ -729,7 +730,7 @@ export default function PresupuestosView() {
     const guardarDetalleSiNuevo = async (detalle: string): Promise<string> => {
         const valor = detalle.trim();
         if (!valor) return '';
-        const response = await fetch(API_DETALLE_CUENTA, {
+        const response = await authenticatedFetch(API_DETALLE_CUENTA, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ detalle: valor }),
@@ -748,7 +749,7 @@ export default function PresupuestosView() {
         try {
             const detalleFinal = await guardarDetalleSiNuevo(detalleBusqueda);
 
-            const response = await fetch(API_BASE, {
+            const response = await authenticatedFetch(API_BASE, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -793,7 +794,7 @@ export default function PresupuestosView() {
         try {
             const detalleFinal = await guardarDetalleSiNuevo(editDetalleBusqueda);
 
-            const response = await fetch(`${API_BASE}/${editCuentaModal.id}`, {
+            const response = await authenticatedFetch(`${API_BASE}/${editCuentaModal.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -822,7 +823,7 @@ export default function PresupuestosView() {
         setIsSavingEdit(true);
         setSaveEditError('');
         try {
-            const response = await fetch(`${API_BASE}/${editCuentaModal.id}`, { method: 'DELETE' });
+            const response = await authenticatedFetch(`${API_BASE}/${editCuentaModal.id}`, { method: 'DELETE' });
             const payload = await response.json().catch(() => null) as { error?: string } | null;
             if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
             setCuentas(prev => prev.filter(c => c.id !== editCuentaModal.id));
@@ -870,7 +871,7 @@ export default function PresupuestosView() {
             const body: Record<string, number> = {};
             MESES.forEach((mes) => { body[mes] = Number(valoresMeses[mes]) || 0; });
 
-            const response = await fetch(`${API_BASE}/${valoresModalCuenta.id}/valores`, {
+            const response = await authenticatedFetch(`${API_BASE}/${valoresModalCuenta.id}/valores`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -977,7 +978,7 @@ export default function PresupuestosView() {
                 const parqueadero = parqueaderos.find(p => p.IDCENTROCOSTO === parqueaderoId);
                 if (!parqueadero) continue;
                 try {
-                    const response = await fetch(API_BASE, {
+                    const response = await authenticatedFetch(API_BASE, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -993,7 +994,7 @@ export default function PresupuestosView() {
                     const payload = await response.json().catch(() => null) as { cuenta?: CuentaPresupuesto; error?: string } | null;
                     if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
 
-                    const respValores = await fetch(`${API_BASE}/${payload!.cuenta!.id}/valores`, {
+                    const respValores = await authenticatedFetch(`${API_BASE}/${payload!.cuenta!.id}/valores`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(valoresBody),
@@ -1098,7 +1099,7 @@ export default function PresupuestosView() {
 
             for (const cuenta of cuentasCoincidentesEditarMasivo) {
                 try {
-                    const response = await fetch(`${API_BASE}/${cuenta.id}/valores`, {
+                    const response = await authenticatedFetch(`${API_BASE}/${cuenta.id}/valores`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(valoresBody),

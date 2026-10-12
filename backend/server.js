@@ -1,13 +1,44 @@
 import express from 'express';
 import * as dotenv from 'dotenv';
+import { requireSession } from './auth.js';
 import { checkPostgresConnection, checkSqlServerConnection, getSqlServerPool, isSqlServerEnabled, pool, getDatabaseConnectionInfo } from './db.js';
 
-dotenv.config({ override: true });
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.BACKEND_PORT || 4000);
 
 app.use(express.json({ limit: '20mb' }));
+
+app.get('/api/health', async (_req, res) => {
+  try {
+    await checkPostgresConnection();
+    res.json({ ok: true, service: 'sitec-backend' });
+  } catch {
+    res.status(503).json({ ok: false, service: 'sitec-backend' });
+  }
+});
+
+app.use('/api', requireSession);
+app.use('/api/n8n', async (req, res) => {
+  const base = process.env.N8N_BASE_URL;
+  if (!base) return res.status(503).json({ error: 'Integración n8n no configurada.' });
+  try {
+    const upstream = await fetch(`${base.replace(/\/$/, '')}${req.url}`, {
+      method: req.method,
+      headers: { 'Content-Type': 'application/json' },
+      body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30000),
+      redirect: 'error',
+    });
+    res.status(upstream.status);
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch {
+    res.status(502).json({ error: 'No se pudo conectar con n8n.' });
+  }
+});
 
 const ensureDescuentosTable = async () => {
   await pool.query(`

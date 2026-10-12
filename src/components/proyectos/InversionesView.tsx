@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../../services/authenticatedFetch';
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Briefcase, Calendar, DollarSign, Download, Eye, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
@@ -133,7 +134,7 @@ export default function InversionesView() {
         setIsLoading(true);
         setLoadError('');
         try {
-            const response = await fetch(API_BASE);
+            const response = await authenticatedFetch(API_BASE);
             if (!response.ok) throw new Error(`Error ${response.status} al cargar inversiones`);
             const payload = await response.json() as { inversiones: Inversion[] };
             setInversiones(payload.inversiones ?? []);
@@ -164,7 +165,7 @@ export default function InversionesView() {
         setIsSaving(true);
         setSaveError('');
         try {
-            const response = await fetch(API_BASE, {
+            const response = await authenticatedFetch(API_BASE, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -213,8 +214,8 @@ export default function InversionesView() {
         setIsLoadingItems(true);
         try {
             const [resUrbapark, resItems] = await Promise.all([
-                fetch(`/api/proyectos/plantilla-urbapark?inversionId=${inv.id}`),
-                fetch(`${API_BASE}/${inv.id}/items`),
+                authenticatedFetch(`/api/proyectos/plantilla-urbapark?inversionId=${inv.id}`),
+                authenticatedFetch(`${API_BASE}/${inv.id}/items`),
             ]);
             if (!resUrbapark.ok) throw new Error(`Error ${resUrbapark.status} al cargar el consolidado`);
             if (!resItems.ok) throw new Error(`Error ${resItems.status} al cargar los items`);
@@ -261,7 +262,7 @@ export default function InversionesView() {
         setIsSavingDetalle(true);
         setSaveDetalleError('');
         try {
-            const response = await fetch(`${API_BASE}/${showDetailModal.id}`, {
+            const response = await authenticatedFetch(`${API_BASE}/${showDetailModal.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -364,7 +365,7 @@ export default function InversionesView() {
         setIsSavingItem(true);
         setSaveItemError('');
         try {
-            const response = await fetch(`${API_BASE}/${showDetailModal.id}/items`, {
+            const response = await authenticatedFetch(`${API_BASE}/${showDetailModal.id}/items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -411,7 +412,7 @@ export default function InversionesView() {
         setIsSavingEditItem(true);
         setSaveEditItemError('');
         try {
-            const response = await fetch(`${API_BASE}/items/${itemEditando.id}`, {
+            const response = await authenticatedFetch(`${API_BASE}/items/${itemEditando.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -434,7 +435,7 @@ export default function InversionesView() {
     const handleEliminarItem = async (id: number) => {
         setItemsError('');
         try {
-            const response = await fetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
+            const response = await authenticatedFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
             const payload = await response.json().catch(() => null) as { error?: string } | null;
             if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
             setInversionItems(prev => prev.filter(it => it.id !== id));
@@ -453,7 +454,7 @@ export default function InversionesView() {
         setPreciosUrbaparkError('');
         setIsLoadingPreciosUrbapark(true);
         try {
-            const response = await fetch(`/api/proyectos/plantilla-urbapark?inversionId=${inv.id}`);
+            const response = await authenticatedFetch(`/api/proyectos/plantilla-urbapark?inversionId=${inv.id}`);
             if (!response.ok) throw new Error(`Error ${response.status} al cargar los precios Urbapark`);
             const payload = await response.json() as { items: PlantillaUrbaparkItem[] };
             setPreciosUrbaparkFilas(payload.items ?? []);
@@ -475,7 +476,7 @@ export default function InversionesView() {
         setGuardarUtilidadInternaError('');
         try {
             for (const [equipoIdStr, valor] of entradas) {
-                const response = await fetch(`/api/proyectos/plantilla-proveedor/equipos/${equipoIdStr}/utilidad-interna`, {
+                const response = await authenticatedFetch(`/api/proyectos/plantilla-proveedor/equipos/${equipoIdStr}/utilidad-interna`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ utilidadInterna: Number(valor) }),

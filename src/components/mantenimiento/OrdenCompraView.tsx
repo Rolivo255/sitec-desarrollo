@@ -1,8 +1,9 @@
+import { authenticatedFetch } from '../../services/authenticatedFetch';
 import { useEffect, useState } from 'react';
 import { CheckCircle, ChevronDown, ChevronRight, Download, Eye, FileText, Upload, X } from 'lucide-react';
 import { dbApiFetch, DB_API_CATALOG } from '../../services/dbApi';
 import { extraerOrdenCompraDesdeImagenN8n } from '../../services/n8nApi';
-import { uploadToSupabaseStorage } from '../../services/supaBase';
+import { getStorageDownloadUrl, uploadToSupabaseStorage } from '../../services/supaBase';
 import type {
   AccesorioTipo,
   FilaEmpleado,
@@ -380,12 +381,12 @@ const OrdenCompraView = ({ solicitudes, ordenesCompra, onUpdateEstado, onOrdenCo
       if (archivo?.file) {
         downloadUrl = URL.createObjectURL(archivo.file);
       } else {
-        const ruta = String(registro?.rutaArchivo || '').trim();
+        const ruta = await getStorageDownloadUrl(String(registro?.rutaArchivo || '').trim());
         const sourceUrl = /^https?:\/\//i.test(ruta)
           ? ruta
           : `/${ruta.replace(/^\//, '')}`;
 
-        const response = await fetch(sourceUrl);
+        const response = await authenticatedFetch(sourceUrl);
         if (!response.ok) {
           throw new Error(`No se pudo descargar el archivo (${response.status}).`);
         }
@@ -485,7 +486,7 @@ const OrdenCompraView = ({ solicitudes, ordenesCompra, onUpdateEstado, onOrdenCo
             file,
           });
 
-          const datosExtraidos = await extraerOrdenCompraDesdeImagenN8n(rutaArchivoSupabase);
+          const datosExtraidos = await extraerOrdenCompraDesdeImagenN8n(await getStorageDownloadUrl(rutaArchivoSupabase));
           numeroOrden = datosExtraidos.numeroOrden;
           totalValor = datosExtraidos.totalFactura;
         }

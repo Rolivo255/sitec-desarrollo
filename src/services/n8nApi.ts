@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './authenticatedFetch';
 export const N8N_API_CATALOG = {
   movimientosHumanaEmpleados: '/api/n8n/webhook/lista/empleados/nomina/entsal',
   empleadosActivos: '/api/n8n/webhook/empleados/activos',
@@ -36,7 +37,7 @@ export interface EmpleadoDistribucionApiItem {
 }
 
 export const getEmpleadosDistribucion = async <T = EmpleadoDistribucionApiItem[]>(): Promise<T> => {
-  const response = await fetch(N8N_API_CATALOG.empleadosDistribucion, {
+  const response = await authenticatedFetch(N8N_API_CATALOG.empleadosDistribucion, {
     method: 'GET',
     headers: buildHeaders(),
   });
@@ -113,7 +114,7 @@ const fetchGetWithRetry = async (url: string, retries = 1): Promise<Response> =>
   let lastResponse: Response | null = null;
 
   for (let intento = 0; intento <= retries; intento += 1) {
-    const response = await fetch(url, {
+    const response = await authenticatedFetch(url, {
       method: 'GET',
       headers: buildHeaders(),
     });
@@ -222,7 +223,7 @@ interface N8nDirectPostInput {
 }
 
 export const n8nPostDirect = async <T = unknown>(input: N8nDirectPostInput): Promise<T> => {
-  const response = await fetch(input.url, {
+  const response = await authenticatedFetch(input.url, {
     method: 'POST',
     headers: buildHeaders(input.apiKey),
     body: JSON.stringify(input.payload ?? {}),
@@ -261,7 +262,7 @@ const postReporteDetalle = async <T extends object>(
   trOtro: string,
   fechaReporte: string
 ): Promise<T[]> => {
-  const response = await fetch(endpoint, {
+  const response = await authenticatedFetch(endpoint, {
     method: 'POST',
     headers: buildHeaders(),
     body: JSON.stringify({ trOtro, fechaReporte }),

@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../../services/authenticatedFetch';
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { getReporteRecaudacionDetalle, getReporteTransferenciaDetalle } from '../../services/n8nApi';
@@ -184,7 +185,7 @@ export default function LiquidacionBancosView() {
             setIsLoadingHistorial(true);
             setHistorialError('');
             try {
-                const response = await fetch(HISTORIAL_ENDPOINT);
+                const response = await authenticatedFetch(HISTORIAL_ENDPOINT);
                 if (!response.ok) {
                     throw new Error(`Error ${response.status} al cargar el historial`);
                 }
@@ -250,7 +251,7 @@ export default function LiquidacionBancosView() {
                 throw new Error('No se encontraron filas válidas en el archivo. Verifique la estructura y las columnas requeridas.');
             }
 
-            const response = await fetch(endpoint, {
+            const response = await authenticatedFetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nombreArchivo: fileToLoad.name, filas }),

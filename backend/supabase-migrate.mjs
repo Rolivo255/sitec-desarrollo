@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
+import { readFileSync } from 'node:fs';
 
-dotenv.config({ override: true });
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
@@ -15,7 +17,7 @@ const sourceConfig = {
   database: process.env.PGDATABASE || 'postgres',
   user: process.env.PGUSER || 'postgres',
   password: process.env.PGPASSWORD || 'postgres',
-  ssl: process.env.PGSSLMODE ? { rejectUnauthorized: false } : undefined,
+  ssl: process.env.PGSSLMODE ? { rejectUnauthorized: true } : undefined,
 };
 
 function parseConnectionString(connectionString) {
@@ -27,22 +29,22 @@ function parseConnectionString(connectionString) {
     const parsed = new URL(connectionString);
     const sslmode = parsed.searchParams.get('sslmode');
     const isPooler = parsed.hostname.includes('.pooler.supabase.com');
-    const ssl = !isPooler && (sslmode === 'require' || sslmode === 'prefer' || sslmode === 'allow' || parsed.searchParams.get('ssl') === 'true' || parsed.hostname.includes('.supabase.co'));
+    const ssl = (sslmode === 'require' || sslmode === 'prefer' || sslmode === 'allow' || parsed.searchParams.get('ssl') === 'true' || parsed.hostname.includes('.supabase.co'));
     return {
       host: parsed.hostname,
       port: Number(parsed.port || 5432),
       database: parsed.pathname.replace(/^\//, ''),
       user: decodeURIComponent(parsed.username),
       password: decodeURIComponent(parsed.password),
-      ssl: ssl ? { rejectUnauthorized: false } : undefined,
+      ssl: ssl ? { rejectUnauthorized: true, ca: readFileSync(new URL('./certs/supabase-ca.crt', import.meta.url), 'utf8') } : undefined,
     };
   } catch {
     return null;
   }
 }
 
-const poolerHost = process.env.SUPABASE_POOLER_HOST || 'aws-1-us-east-2.pooler.supabase.com';
-const defaultSupabaseConnectionString = 'postgres://postgres.xaglgjnqbwyissbbukff:Krapabru87227275@aws-1-us-east-2.pooler.supabase.com:5432/postgres';
+const poolerHost = process.env.SUPABASE_POOLER_HOST;
+
 
 function normalizeConnectionString(connectionString) {
   if (!connectionString) {
@@ -58,9 +60,9 @@ function normalizeConnectionString(connectionString) {
     }
 
     if (!parsed.searchParams.has('sslmode')) {
-      parsed.searchParams.set('sslmode', isSupabasePooler ? 'disable' : 'require');
+      parsed.searchParams.set('sslmode', 'require');
     } else if (isSupabasePooler) {
-      parsed.searchParams.set('sslmode', 'disable');
+      parsed.searchParams.set('sslmode', 'require');
     }
 
     return parsed.toString();
@@ -69,13 +71,13 @@ function normalizeConnectionString(connectionString) {
   }
 }
 
-const targetConfig = parseConnectionString(normalizeConnectionString(process.env.SUPABASE_DB_CONNECTION_STRING || defaultSupabaseConnectionString)) || {
+const targetConfig = parseConnectionString(normalizeConnectionString(process.env.SUPABASE_DB_CONNECTION_STRING)) || {
   host: process.env.SUPABASE_HOST,
   port: Number(process.env.SUPABASE_PORT || 5432),
   database: process.env.SUPABASE_DATABASE,
   user: process.env.SUPABASE_USER,
   password: process.env.SUPABASE_PASSWORD,
-  ssl: process.env.SUPABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+  ssl: process.env.SUPABASE_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
 };
 
 if (!targetConfig.host || !targetConfig.database || !targetConfig.user || !targetConfig.password) {
@@ -173,7 +175,7 @@ function mapColumnType(column) {
 }
 
 async function createStorageBucket() {
-  const supabaseUrl = process.env.SUPABASE_URL || 'https://xaglgjnqbwyissbbukff.supabase.co';
+  const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!serviceRoleKey) {
@@ -188,7 +190,7 @@ async function createStorageBucket() {
       Authorization: `Bearer ${serviceRoleKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name: bucketName, public: true }),
+    body: JSON.stringify({ name: bucketName, public: false }),
   });
 
   if (response.ok) {

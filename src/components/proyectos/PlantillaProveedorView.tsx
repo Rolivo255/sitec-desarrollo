@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../../services/authenticatedFetch';
 import { useEffect, useMemo, useState } from 'react';
 import {
     AlertCircle,
@@ -112,8 +113,8 @@ export default function PlantillaProveedorView() {
         setLoadError('');
         try {
             const [resCat, resEq] = await Promise.all([
-                fetch(`${API_BASE}/categorias`),
-                fetch(`${API_BASE}/equipos`),
+                authenticatedFetch(`${API_BASE}/categorias`),
+                authenticatedFetch(`${API_BASE}/equipos`),
             ]);
             if (!resCat.ok) throw new Error(`Error ${resCat.status} al cargar categorías`);
             if (!resEq.ok) throw new Error(`Error ${resEq.status} al cargar equipos`);
@@ -182,7 +183,7 @@ export default function PlantillaProveedorView() {
         setCatError('');
         try {
             const url = editingCatId ? `${API_BASE}/categorias/${editingCatId}` : `${API_BASE}/categorias`;
-            const response = await fetch(url, {
+            const response = await authenticatedFetch(url, {
                 method: editingCatId ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nombre: newCategoriaNombre.trim(), proveedor: newCategoriaProveedor.trim() }),
@@ -209,7 +210,7 @@ export default function PlantillaProveedorView() {
     const handleDeleteCategoria = async (id: number) => {
         setCatError('');
         try {
-            const response = await fetch(`${API_BASE}/categorias/${id}`, { method: 'DELETE' });
+            const response = await authenticatedFetch(`${API_BASE}/categorias/${id}`, { method: 'DELETE' });
             const payload = await response.json().catch(() => null) as { error?: string } | null;
             if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
             setCategorias(prev => prev.filter(c => c.id !== id));
@@ -237,7 +238,7 @@ export default function PlantillaProveedorView() {
         setIsSavingEquipo(true);
         setCreateError('');
         try {
-            const response = await fetch(`${API_BASE}/equipos`, {
+            const response = await authenticatedFetch(`${API_BASE}/equipos`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ categoriaId: Number(formCategoriaId), nombreEquipo: formNombreEquipo.trim() }),
@@ -263,7 +264,7 @@ export default function PlantillaProveedorView() {
         setIsDetailDrawerOpen(true);
         setIsLoadingDetalle(true);
         try {
-            const response = await fetch(`${API_BASE}/equipos/${equipo.id}`);
+            const response = await authenticatedFetch(`${API_BASE}/equipos/${equipo.id}`);
             const payload = await response.json().catch(() => null) as { equipo?: Equipo; componentes?: Componente[]; error?: string } | null;
             if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
             setDetalleComponentes(payload?.componentes ?? []);
@@ -279,7 +280,7 @@ export default function PlantillaProveedorView() {
         setIsSavingUtilidad(true);
         setUtilidadError('');
         try {
-            const response = await fetch(`${API_BASE}/equipos/${detalleEquipo.id}/utilidad-interna`, {
+            const response = await authenticatedFetch(`${API_BASE}/equipos/${detalleEquipo.id}/utilidad-interna`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ utilidadInterna: valor }),
@@ -331,7 +332,7 @@ export default function PlantillaProveedorView() {
         setIsDeletingEquipo(true);
         setDeleteEquipoError('');
         try {
-            const response = await fetch(`${API_BASE}/equipos/${detalleEquipo.id}`, { method: 'DELETE' });
+            const response = await authenticatedFetch(`${API_BASE}/equipos/${detalleEquipo.id}`, { method: 'DELETE' });
             const payload = await response.json().catch(() => null) as { error?: string } | null;
             if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
 
@@ -360,7 +361,7 @@ export default function PlantillaProveedorView() {
         setIsSavingComponente(true);
         setCompError('');
         try {
-            const response = await fetch(`${API_BASE}/equipos/${detalleEquipo.id}/componentes`, {
+            const response = await authenticatedFetch(`${API_BASE}/equipos/${detalleEquipo.id}/componentes`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -397,7 +398,7 @@ export default function PlantillaProveedorView() {
     const handleDeleteComponente = async (id: number) => {
         if (!detalleEquipo) return;
         try {
-            const response = await fetch(`${API_BASE}/componentes/${id}`, { method: 'DELETE' });
+            const response = await authenticatedFetch(`${API_BASE}/componentes/${id}`, { method: 'DELETE' });
             const payload = await response.json().catch(() => null) as { error?: string } | null;
             if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
 

@@ -1,77 +1,40 @@
 import pg from 'pg';
 import sql from 'mssql';
 import * as dotenv from 'dotenv';
+import { readFileSync } from 'node:fs';
 
-dotenv.config({ override: true });
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const { Pool } = pg;
 
-const rawConnectionString = process.env.SUPABASE_DB_CONNECTION_STRING || process.env.DATABASE_URL || process.env.PG_CONNECTION_STRING || 'postgres://postgres.xaglgjnqbwyissbbukff:Krapabru87227275@aws-1-us-east-2.pooler.supabase.com:5432/postgres';
-const poolerHost = process.env.SUPABASE_POOLER_HOST || 'aws-1-us-east-2.pooler.supabase.com';
-
-function normalizeConnectionString(connectionString) {
-  if (!connectionString) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(connectionString);
-    const isSupabasePooler = parsed.hostname.includes('.pooler.supabase.com') || parsed.hostname === poolerHost;
-
-    if (poolerHost) {
-      parsed.hostname = poolerHost;
-    }
-
-    if (!parsed.searchParams.has('sslmode')) {
-      parsed.searchParams.set('sslmode', isSupabasePooler ? 'disable' : 'require');
-    } else if (isSupabasePooler) {
-      parsed.searchParams.set('sslmode', 'disable');
-    }
-
-    return parsed.toString();
-  } catch {
-    return connectionString;
-  }
+const rawConnectionString = process.env.SUPABASE_DB_CONNECTION_STRING || process.env.DATABASE_URL || process.env.PG_CONNECTION_STRING;
+const connectionString = rawConnectionString;
+if (!connectionString && !process.env.PGHOST) {
+  throw new Error('Configura SUPABASE_DB_CONNECTION_STRING o PGHOST antes de iniciar el backend.');
 }
-
-const connectionString = normalizeConnectionString(rawConnectionString);
-const useSupabaseSsl = Boolean(connectionString) && (
-  String(process.env.SUPABASE_SSL || '').toLowerCase() === 'true' ||
-  String(process.env.PGSSLMODE || '').toLowerCase() === 'require' ||
-  connectionString.includes('sslmode=require')
-) && !connectionString.includes('.pooler.supabase.com');
-
-export const pool = new Pool(
-  connectionString
-    ? {
-        connectionString,
-        ssl: useSupabaseSsl ? { rejectUnauthorized: false } : undefined,
-      }
-    : {
-        host: process.env.PGHOST || 'localhost',
-        port: Number(process.env.PGPORT || 5432),
-        database: process.env.PGDATABASE || 'postgres',
-        user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || 'postgres',
-      }
-);
-
-export const getDatabaseConnectionInfo = () => {
-  try {
-    const url = new URL(connectionString || '');
-    return {
-      connectionString: connectionString || null,
-      host: url.hostname,
-      usingPooler: url.hostname.includes('.pooler.supabase.com'),
-    };
-  } catch {
-    return {
-      connectionString: connectionString || null,
-      host: process.env.PGHOST || 'localhost',
-      usingPooler: false,
-    };
-  }
-};
+const remote = connectionString ? new URL(connectionString).hostname !== 'localhost' : process.env.PGHOST !== 'localhost';
+export const pool = new Pool({
+  ...(connectionString ? { connectionString } : {
+    host: process.env.PGHOST,
+    port: Number(process.env.PGPORT || 5432),
+    database: process.env.PGDATABASE || 'postgres',
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+  }),
+  ssl: remote ? {
+    rejectUnauthorized: true,
+    ca: readFileSync(new URL('./certs/supabase-ca.crt', import.meta.url), 'utf8'),
+  } : undefined,
+  max: Number(process.env.PGPOOL_MAX || 3),
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 10000,
+  allowExitOnIdle: true,
+});
+export const getDatabaseConnectionInfo = () => ({
+  host: connectionString ? new URL(connectionString).hostname : process.env.PGHOST,
+  usingPooler: Boolean(connectionString?.includes('.pooler.supabase.com')),
+});
 
 const SQLSERVER_ENABLED = String(process.env.SQLSERVER_ENABLED || 'false').toLowerCase() === 'true';
 

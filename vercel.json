@@ -1,6 +1,13 @@
 {
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "regions": ["sfo1"],
+  "functions": { "api/index.js": { "maxDuration": 60 } },
   "rewrites": [
-    { "source": "/api/n8n/(.*)", "destination": "https://sitecapn-n8n.9hwbyc.easypanel.host/$1" },
-    { "source": "/api/(.*)", "destination": "/api/index" }
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/health/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }
   ]
 }

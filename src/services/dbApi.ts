@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './authenticatedFetch';
 import type { HumanaDataByPeriod, HumanaEmployeeData } from '../types/humana';
 
 export const DB_API_CATALOG = {
@@ -55,7 +56,7 @@ interface DbApiFetchInput {
 }
 
 export const dbApiFetch = async <T = unknown>(input: DbApiFetchInput): Promise<T | null> => {
-  const response = await fetch(input.endpoint, {
+  const response = await authenticatedFetch(input.endpoint, {
     method: input.method ?? 'GET',
     headers: {
       ...defaultJsonHeaders,
