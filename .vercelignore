@@ -4,3 +4,5 @@ node_modules
 *.backup
 referencias
 files
+.local-data
+backend/sql
