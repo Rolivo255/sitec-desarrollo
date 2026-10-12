@@ -429,7 +429,7 @@ export default function PlantillaProveedorView() {
                 <div className="flex items-start gap-4">
                     <div className="text-blue-500 mt-1"><ClipboardList size={28} strokeWidth={1.5} /></div>
                     <div>
-                        <h2 className="text-[22px] font-medium text-slate-800 leading-tight">Plantilla de Proveedor</h2>
+                        <h2 className="text-[22px] font-medium text-slate-800 leading-tight">Proveedor</h2>
                         <p className="text-[13px] text-slate-500 mt-1">Gestiona los proveedores disponibles para los diferentes parqueaderos</p>
                     </div>
                 </div>

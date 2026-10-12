@@ -264,7 +264,7 @@ function App() {
             </button>
             {expandedMenus.proyectos && (
               <div className="ml-4 pl-4 border-l border-slate-100 space-y-1 mt-1 mb-2">
-                <button onClick={() => setActiveTab('plantilla_proveedor')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('plantilla_proveedor') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Plantilla Proveedor</button>
+                <button onClick={() => setActiveTab('plantilla_proveedor')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('plantilla_proveedor') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Proveedor</button>
                 <button onClick={() => setActiveTab('inversion_proyectos')} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${isItemActive('inversion_proyectos') ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>Inversión</button>
               </div>
             )}
